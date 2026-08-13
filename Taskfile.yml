@@ -89,6 +89,10 @@ tasks:
     desc: "Run unit + integration tests (Vitest). Integration tests need a migrated, seeded DB."
     cmd: pnpm test
 
+  "test:coverage":
+    desc: "Run unit + integration tests with coverage (90% threshold, business-logic layer)."
+    cmd: pnpm test:coverage
+
   "test:e2e":
     desc: "Run end-to-end tests (Playwright). Builds first."
     # Unlike ci.yml, this doesn't install Playwright browsers: CI runners
@@ -115,8 +119,10 @@ tasks:
   # --- Local CI -------------------------------------------------------------
   # Keep this task's step order identical to .github/workflows/ci.yml
   # (contract §31-32) - a step added/removed here must be mirrored there.
-  # Migrations + seed run before `test` because the integration tests
-  # (tests/integration/) query real seeded Trip/Destination rows.
+  # Migrations + seed run before `test:coverage` because the integration
+  # tests (tests/integration/) query real seeded Trip/Destination rows.
+  # test:coverage instead of plain test: same test run, plus the 90%
+  # coverage gate - no point running the suite twice.
   ci:
     desc: "Run the full local CI pipeline - mirrors .github/workflows/ci.yml."
     cmds:
@@ -125,7 +131,7 @@ tasks:
       - task: typecheck
       - cmd: pnpm db:migrate:deploy
       - cmd: pnpm db:seed
-      - task: test
+      - task: "test:coverage"
       - task: "test:e2e" # builds internally, then runs Playwright
 
   # --- Docker -----------------------------------------------------------

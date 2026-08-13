@@ -48,6 +48,7 @@ task setup            # environnement de zéro à fonctionnel
 task dev               # démarrage local (app + postgres + mailpit)
 task build              # build de production
 task test                # tests unitaires (Vitest)
+task test:coverage        # tests + couverture (seuil 90%, voir "Tests")
 task lint                 # ESLint
 task typecheck             # TypeScript strict (tsc --noEmit)
 task format                # Prettier (écrit)
@@ -73,6 +74,16 @@ task security:audit                  # vérifie les dépendances (pnpm audit)
   via les repositories (`src/features/*/queries.ts`) - nécessite une base
   migrée et seedée (`task db:migrate && task db:seed` avant `task test` en
   dehors de `task ci`, qui le fait automatiquement).
+- **Couverture** (`task test:coverage`) : seuil de 90% (lignes, branches,
+  fonctions, instructions) sur `src/lib/` et `src/features/` - la couche
+  logique métier/accès aux données que les tests unitaires/intégration
+  couvrent. Les composants React (`src/components/`, `src/app/`) sont
+  volontairement hors périmètre : ils sont vérifiés par Playwright (E2E,
+  ci-dessous), un outil différent dont Vitest ne peut pas mesurer la
+  couverture - les y inclure nécessiterait soit une configuration de test
+  de composants séparée sans besoin unitaire réel, soit produirait un
+  chiffre trompeur pour du code déjà couvert, juste par un autre outil.
+  Intégré à `task ci` (remplace `task test`, même exécution).
 - **End-to-end** (`e2e/`) : parcours utilisateur avec Playwright, couvrant
   desktop et mobile - `task test:e2e` (build une version de production
   d'abord, puis lance le serveur standalone). Nécessite les navigateurs

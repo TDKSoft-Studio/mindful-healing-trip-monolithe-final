@@ -51,4 +51,13 @@ describe("getBookingUnavailableMessage", () => {
     expect(getBookingUnavailableMessage("SOLD_OUT")).toMatch(/complet/i);
     expect(getBookingUnavailableMessage("CANCELLED")).toMatch(/annulé/i);
   });
+
+  it("falls back to a generic message for a status with no specific one", () => {
+    // DRAFT trips never reach a visitor in practice (filtered by
+    // published/publishedAt), so there's deliberately no specific message
+    // for it - this exercises that defensive fallback directly.
+    expect(getBookingUnavailableMessage("DRAFT")).toBe(
+      "Ce voyage n'est pas ouvert à la réservation.",
+    );
+  });
 });

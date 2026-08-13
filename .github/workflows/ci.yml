@@ -6,9 +6,9 @@ on:
   pull_request:
 
 # Mirrors `task ci` exactly (contract §30-32): format:check -> lint ->
-# typecheck -> migrate -> seed -> test -> build -> test:e2e. Keep these two
-# in sync - if a step is added/removed here, mirror it in Taskfile.yml, and
-# vice versa.
+# typecheck -> migrate -> seed -> test:coverage -> build -> test:e2e. Keep
+# these two in sync - if a step is added/removed here, mirror it in
+# Taskfile.yml, and vice versa.
 jobs:
   ci:
     runs-on: ubuntu-latest
@@ -73,8 +73,8 @@ jobs:
       - name: Seed database
         run: pnpm db:seed
 
-      - name: Unit + integration tests
-        run: pnpm test
+      - name: Unit + integration tests (with coverage)
+        run: pnpm test:coverage
 
       - name: Build
         run: pnpm build

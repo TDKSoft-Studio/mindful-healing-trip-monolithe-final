@@ -85,6 +85,41 @@ build` - c'est le comportement documenté et attendu de la sortie
   renvoyait une 500 "User was denied access on the database" en local sans
   cette variable exportée manuellement).
 
+## Couverture de tests
+
+Seuil de 90% (lignes, branches, fonctions, instructions), configuré dans
+`vitest.config.mts` (`test.coverage`, provider v8) et appliqué dans
+`task ci` via `pnpm test:coverage` (remplace `pnpm test` dans ce contexte -
+même exécution de tests, instrumentation en plus, pas de suite dupliquée).
+
+**Périmètre volontairement limité à `src/lib/**` et `src/features/**`** -
+exactement la couche que le contrat §34 assigne aux tests unitaires/
+d'intégration ("logique métier, helpers" / "accès DB, repositories/
+services, formulaires, APIs"). `src/components/` et `src/app/` (pages,
+Server/Client Components) en sont exclus : ils sont vérifiés par
+Playwright (contrat §34, section E2E - parcours visiteur, navigation,
+accessibilité), un outil différent dont l'instrumentation v8 de Vitest ne
+peut pas voir l'exécution. Les y inclure aurait signifié soit introduire
+tout un dispositif de tests de composants (React Testing Library + jsdom)
+sans besoin unitaire réel derrière (contrat §65), soit afficher un chiffre
+de couverture trompeur pour du code déjà vérifié, juste par un autre
+outil.
+
+`src/lib/db/prisma.ts` (singleton Prisma) est explicitement exclu du
+calcul : c'est du câblage, pas de la logique à branches - exercé
+indirectement par chaque test d'intégration, mais rien à unit-tester
+isolément.
+
+**`src/features/contact/actions.ts`** (le Server Action) était à 0% avant
+cette passe - `next/headers` exige une portée de requête réelle que Vitest
+n'a pas, ce qui avait jusqu'ici découragé de le tester directement (d'où
+l'extraction de `mutations.ts`, testé séparément). Résolu en mockant
+`next/headers` (`vi.mock`) plutôt qu'en évitant le fichier - une technique
+de test standard, pas une nouvelle abstraction applicative. Les autres
+dépendances d'`actions.ts` (`mutations.ts`, `rate-limit.ts`) sont mockées
+dans son test pour isoler l'orchestration/le branchement propre à ce
+fichier - leurs internals ont déjà leur propre couverture dédiée.
+
 ## Sécurité
 
 - Aucun secret commité : `.env`/`.env.local` sont ignorés par git,

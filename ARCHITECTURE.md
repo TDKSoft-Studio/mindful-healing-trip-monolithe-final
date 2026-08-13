@@ -116,6 +116,45 @@ Ces valeurs doivent être injectées par l'environnement de déploiement (build
 arg / variable d'env), jamais codées en dur dans le code applicatif -
 `.env.example` documente localhost comme valeur de développement.
 
+## Design system (Phase 2)
+
+Components built so far (contract §22), under `src/components/`:
+
+- `ui/`: `Container`, `SectionHeading`, `Button`, `Link`, `Badge`,
+  `StatusBadge`, `Card`, `Accordion`, `Breadcrumb`.
+- `layout/`: `Header` (sticky, logo, desktop nav, CTA), `Footer` (nav,
+  contact, social, legal, copyright - all from `src/lib/site-config.ts`).
+- `navigation/`: `MobileNavigation` (accessible disclosure menu).
+- `forms/`: `FormField` (label + input/textarea + error, accessible).
+
+**Deliberately not built yet**: `TripCard`, `DestinationCard`,
+`ImageGallery`, `ContactForm`, `BookingCTA`, `Modal`. These need real
+`Trip`/`Destination` shapes (Phase 3) or a real form flow (Phase 5) to be
+meaningful - building them now would mean guessing a data shape and
+reworking it later (contract §66: no abstraction before a real need).
+`StatusBadge` is the one exception: its input (`TripStatus`) is fully
+specified by the contract itself (§9), so `src/lib/trip-status.ts` defines
+it now, ahead of the Prisma model, with unit tests for the status-display
+rules the contract mandates (§34) - Phase 3's Prisma `TripStatus` enum must
+stay in sync with this file's values.
+
+**`cn()` uses `tailwind-merge`+`clsx`** (not a plain string join): once
+components started overriding each other's default classes (e.g. Header's
+nav links overriding `Link`'s default `underline`), a plain join left both
+the base and override utility class present, and which one wins is decided
+by Tailwind's generated CSS order - not argument order. This silently broke
+nav styling (visible only by actually rendering the page, not by lint or
+typecheck) before the fix. See `tests/unit/cn.test.ts` for the regression
+test and `src/lib/utils/cn.ts` for the explanation.
+
+**Accessibility is enforced at the token level, not just per-component**:
+`text-muted-foreground` and friends in `globals.css` are chosen and
+comment-documented to meet WCAG AA contrast (≥4.5:1 for text, ≥3:1 for the
+focus ring) - arbitrary opacity utilities like `text-brand-brown/50` are
+not used for text, because they silently fail contrast (verified ~2.7:1,
+see the token comments). `e2e/accessibility.spec.ts` runs an automated
+axe scan (WCAG 2.0/2.1 A/AA) against the homepage on every `task ci` run.
+
 ## CMS
 
 Aucun CMS en Phase 1-3. Le contenu métier (voyages, destinations) vit en

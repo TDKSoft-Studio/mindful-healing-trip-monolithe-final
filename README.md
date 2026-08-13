@@ -6,9 +6,10 @@ pour le contrat d'ingénierie de référence du projet, et
 [`docs/ENGINEERING_DISCOVERY.md`](docs/ENGINEERING_DISCOVERY.md) pour l'état
 des lieux initial du repository.
 
-> **Statut** : Phase 1 (Foundation). Le stack technique, Docker, la base de
-> données et la CI sont en place ; le design system complet et les pages
-> publiques arrivent en Phase 2+.
+> **Statut** : Phase 2 (Design System). Le stack technique, Docker, la base
+> de données, la CI, ainsi que les tokens de marque et les composants
+> réutilisables (Header, Footer, Button, etc.) sont en place ; les pages
+> publiques (voyages, destinations...) arrivent en Phase 3+.
 
 ## Stack
 
@@ -68,6 +69,14 @@ task health                          # vérifie /api/health sur une instance dé
 - **End-to-end** (`e2e/`) : parcours utilisateur avec Playwright, couvrant
   desktop et mobile - `task test:e2e` (build une version de production
   d'abord, puis lance le serveur standalone).
+
+## Design system
+
+Composants réutilisables sous `src/components/` (`ui/`, `layout/`,
+`navigation/`, `forms/`), tokens de marque dans `src/app/globals.css`,
+configuration centrale (nav, contact, réseaux) dans `src/lib/site-config.ts`.
+Détail des choix et de ce qui reste volontairement non construit (TripCard,
+ContactForm...) dans [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 ## Base de données
 

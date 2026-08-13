@@ -34,43 +34,43 @@ Contenu intégral du repository à ce jour :
 
 Détail par domaine :
 
-| Domaine | Constat |
-|---|---|
-| Framework | **Aucun** — pas de Next.js, pas de `package.json`, pas de `src/` |
-| Version Node/Next | **Non définie** — aucun `.nvmrc`, `engines`, ou lockfile |
-| Package manager | **Non défini** — aucun lockfile (`package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`) |
-| Structure | Aucune arborescence applicative. Seul `docs/assets/` existe |
-| Database | Aucune — pas de `prisma/`, pas de `schema.prisma`, pas de config PostgreSQL |
-| Tests | Aucun — pas de `tests/`, `e2e/`, config Vitest ou Playwright |
-| CI | Aucune — pas de `.github/workflows/` |
-| Docker | Aucun `Dockerfile`, `compose.yaml`, `docker-compose.yml`, `.dockerignore` |
-| Taskfile | Aucun `Taskfile.yml` |
-| Assets graphiques | **Aucun fichier présent** dans le repository ni ailleurs sur le système de fichiers de cette session (voir §3) |
-| README / docs | Aucun `README.md`, `ARCHITECTURE.md`, `CONTRIBUTING.md` |
-| Variables d'env | Aucun `.env.example` |
-| État général | Projet au stade **pré-Phase 0** : uniquement le contrat d'ingénierie est en place. Tout le reste (Phase 1 à 8 du contrat) reste à construire. |
+| Domaine           | Constat                                                                                                                                       |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Framework         | **Aucun** — pas de Next.js, pas de `package.json`, pas de `src/`                                                                              |
+| Version Node/Next | **Non définie** — aucun `.nvmrc`, `engines`, ou lockfile                                                                                      |
+| Package manager   | **Non défini** — aucun lockfile (`package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`)                                                          |
+| Structure         | Aucune arborescence applicative. Seul `docs/assets/` existe                                                                                   |
+| Database          | Aucune — pas de `prisma/`, pas de `schema.prisma`, pas de config PostgreSQL                                                                   |
+| Tests             | Aucun — pas de `tests/`, `e2e/`, config Vitest ou Playwright                                                                                  |
+| CI                | Aucune — pas de `.github/workflows/`                                                                                                          |
+| Docker            | Aucun `Dockerfile`, `compose.yaml`, `docker-compose.yml`, `.dockerignore`                                                                     |
+| Taskfile          | Aucun `Taskfile.yml`                                                                                                                          |
+| Assets graphiques | **Aucun fichier présent** dans le repository ni ailleurs sur le système de fichiers de cette session (voir §3)                                |
+| README / docs     | Aucun `README.md`, `ARCHITECTURE.md`, `CONTRIBUTING.md`                                                                                       |
+| Variables d'env   | Aucun `.env.example`                                                                                                                          |
+| État général      | Projet au stade **pré-Phase 0** : uniquement le contrat d'ingénierie est en place. Tout le reste (Phase 1 à 8 du contrat) reste à construire. |
 
 ---
 
 ## 2. Contract Compliance
 
-| Requirement | Current State | Status | Action |
-|---|---|---|---|
-| Next.js (App Router) | Absent | ❌ Manquant | Initialiser en Phase 1 |
-| TypeScript (strict) | Absent | ❌ Manquant | Initialiser avec `strict: true` |
-| PostgreSQL | Absent | ❌ Manquant | À provisionner via Docker Compose |
-| Prisma | Absent | ❌ Manquant | `prisma/schema.prisma`, migrations, seed à créer |
-| Zod | Absent | ❌ Manquant | À ajouter comme dépendance de validation |
-| Vitest | Absent | ❌ Manquant | À configurer avec les premiers tests unitaires |
-| Playwright | Absent | ❌ Manquant | À configurer avec les premiers parcours E2E |
-| Docker | Absent | ❌ Manquant | `Dockerfile` multi-stage + `.dockerignore` |
-| Docker Compose | Absent | ❌ Manquant | `compose.yaml` (app + postgres, mailpit optionnel) |
-| Taskfile | Absent | ❌ Manquant | `Taskfile.yml` avec les 17 tâches contractuelles |
-| Local CI (`task ci`) | Absent | ❌ Manquant | À construire en miroir de `ci.yml` |
-| GitHub Actions | Absent | ❌ Manquant | `.github/workflows/ci.yml` |
-| SEO | Absent | ❌ Manquant | Metadata dynamique, sitemap, robots.txt — Phase 6 |
-| Accessibility | Absent | ❌ Manquant | WCAG 2.2 AA — intégré dès le design system, vérifié Phase 6 |
-| Design system | Absent | ❌ Manquant | Tokens de marque + composants — Phase 2, **bloqué par assets manquants** (voir §3) |
+| Requirement          | Current State | Status      | Action                                                                             |
+| -------------------- | ------------- | ----------- | ---------------------------------------------------------------------------------- |
+| Next.js (App Router) | Absent        | ❌ Manquant | Initialiser en Phase 1                                                             |
+| TypeScript (strict)  | Absent        | ❌ Manquant | Initialiser avec `strict: true`                                                    |
+| PostgreSQL           | Absent        | ❌ Manquant | À provisionner via Docker Compose                                                  |
+| Prisma               | Absent        | ❌ Manquant | `prisma/schema.prisma`, migrations, seed à créer                                   |
+| Zod                  | Absent        | ❌ Manquant | À ajouter comme dépendance de validation                                           |
+| Vitest               | Absent        | ❌ Manquant | À configurer avec les premiers tests unitaires                                     |
+| Playwright           | Absent        | ❌ Manquant | À configurer avec les premiers parcours E2E                                        |
+| Docker               | Absent        | ❌ Manquant | `Dockerfile` multi-stage + `.dockerignore`                                         |
+| Docker Compose       | Absent        | ❌ Manquant | `compose.yaml` (app + postgres, mailpit optionnel)                                 |
+| Taskfile             | Absent        | ❌ Manquant | `Taskfile.yml` avec les 17 tâches contractuelles                                   |
+| Local CI (`task ci`) | Absent        | ❌ Manquant | À construire en miroir de `ci.yml`                                                 |
+| GitHub Actions       | Absent        | ❌ Manquant | `.github/workflows/ci.yml`                                                         |
+| SEO                  | Absent        | ❌ Manquant | Metadata dynamique, sitemap, robots.txt — Phase 6                                  |
+| Accessibility        | Absent        | ❌ Manquant | WCAG 2.2 AA — intégré dès le design system, vérifié Phase 6                        |
+| Design system        | Absent        | ❌ Manquant | Tokens de marque + composants — Phase 2, **bloqué par assets manquants** (voir §3) |
 
 Aucun élément du contrat n'est actuellement respecté, ce qui est cohérent avec un repository neuf en Phase 0. Il n'y a **aucune divergence technique à arbitrer** à ce stade puisqu'il n'existe encore aucune décision technique prise dans le repository qui contredirait le contrat.
 
@@ -135,13 +135,13 @@ Ce point ne présente aucun risque de divergence à ce stade puisqu'il n'y a rie
 
 ## 6. Risks
 
-| Risque | Impact | Mitigation proposée |
-|---|---|---|
-| Assets de marque officiels absents du repository | Impossible de livrer une identité visuelle finale conforme sans les fichiers réels | Démarrer la Phase 1/2 avec tokens texte (palette + typographies déjà documentées) et placeholders explicites ; demander les fichiers avant la Phase 2 finale / Phase 4 |
-| Données commerciales des voyages non confirmées (prix, places, statut Reims notamment) | Risque d'afficher une information erronée à un visiteur réel | Utiliser systématiquement `NEEDS_CONFIRMATION` en seed, ne jamais extrapoler depuis les flyers texte |
-| Domaine canonique ambigu (`healing.nextgen-care.org` vs variantes) | Risque d'URLs canoniques/SEO/Open Graph incorrectes en production | Centraliser dans `NEXT_PUBLIC_SITE_URL`, documenter comme à confirmer avant mise en production |
-| Absence totale d'historique technique | Aucune dette technique existante, mais aucune décision arbitrable non plus — tout est à construire, donc risque de sur-ingénierie si on ne suit pas strictement le contrat | Suivre strictement l'ordre des phases du contrat (§54–62), livrer par étapes vérifiables avec `task ci` vert à chaque étape |
-| Package manager et version Node non spécifiés par le contrat | Risque d'incohérence d'outillage si choisi arbitrairement puis remis en cause plus tard | Fixer dès la Phase 1 : Node.js LTS + pnpm (rapide, largement adopté, bon support monorepo/Docker layer caching), documenté dans README et `.nvmrc`/`packageManager` |
+| Risque                                                                                 | Impact                                                                                                                                                                     | Mitigation proposée                                                                                                                                                    |
+| -------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Assets de marque officiels absents du repository                                       | Impossible de livrer une identité visuelle finale conforme sans les fichiers réels                                                                                         | Démarrer la Phase 1/2 avec tokens texte (palette + typographies déjà documentées) et placeholders explicites ; demander les fichiers avant la Phase 2 finale / Phase 4 |
+| Données commerciales des voyages non confirmées (prix, places, statut Reims notamment) | Risque d'afficher une information erronée à un visiteur réel                                                                                                               | Utiliser systématiquement `NEEDS_CONFIRMATION` en seed, ne jamais extrapoler depuis les flyers texte                                                                   |
+| Domaine canonique ambigu (`healing.nextgen-care.org` vs variantes)                     | Risque d'URLs canoniques/SEO/Open Graph incorrectes en production                                                                                                          | Centraliser dans `NEXT_PUBLIC_SITE_URL`, documenter comme à confirmer avant mise en production                                                                         |
+| Absence totale d'historique technique                                                  | Aucune dette technique existante, mais aucune décision arbitrable non plus — tout est à construire, donc risque de sur-ingénierie si on ne suit pas strictement le contrat | Suivre strictement l'ordre des phases du contrat (§54–62), livrer par étapes vérifiables avec `task ci` vert à chaque étape                                            |
+| Package manager et version Node non spécifiés par le contrat                           | Risque d'incohérence d'outillage si choisi arbitrairement puis remis en cause plus tard                                                                                    | Fixer dès la Phase 1 : Node.js LTS + pnpm (rapide, largement adopté, bon support monorepo/Docker layer caching), documenté dans README et `.nvmrc`/`packageManager`    |
 
 ---
 
@@ -171,7 +171,7 @@ Une seule question bloque réellement une décision (le reste peut être tranch�
    → **Action requise côté utilisateur** : déposer les 5 fichiers originaux directement dans le repository (upload via l'interface GitHub ou `git add`/`git push` sur la branche), idéalement sous :
    - `public/brand/logo-mindfultrip-historic-transparent.png`
    - `docs/assets/brand-source/` pour les flyers et le brand board sources (`reims-01.png`, `berlin2026-fin.png`, `minfull-tripp-paris.jpeg`, `mindfultrip-brand-board-v1.0.png`)
-   Une fois poussés sur la branche, je les intégrerai tels quels (Phase 2/4), sans aucune retouche.
+     Une fois poussés sur la branche, je les intégrerai tels quels (Phase 2/4), sans aucune retouche.
 
 Aucune autre question n'est bloquante : package manager, version Node, emplacement du contrat, statut définitif de Reims, domaine canonique final, et périmètre de l'admin sont toutes des décisions que je peux prendre raisonnablement (documentées ci-dessus) ou différer proprement via des placeholders `NEEDS_CONFIRMATION`, conformément à la règle §68 du contrat.
 
@@ -182,12 +182,15 @@ Aucune autre question n'est bloquante : package manager, version Node, emplaceme
 Les visuels partagés confirment/complètent les données déjà retranscrites dans le contrat (§11). Pour rester fidèle à la règle « ne pas inventer / ne pas extrapoler » (§10, §68), voici ce qui est **explicitement lisible sur les visuels** et ce qui reste **`NEEDS_CONFIRMATION`** :
 
 ### Logo
+
 Confirme la description du contrat : cercle brun, soleil + deux palmiers, vague océan, texte « MINDFUL HEALING TRIPS ». Rien à modifier ; asset à intégrer tel quel dès réception du fichier réel.
 
 ### Brand board
+
 Confirme exactement la palette du contrat (Brun `#3A2113`, Océan `#1C5B71`, Soleil `#E48E51`, Or `#E4AF56`, Sable `#EDD1AD`, Ivoire `#F9EADC`) et les typographies (Lora / Montserrat). Aucune divergence avec le contrat texte.
 
 ### Flyer Paris
+
 - Titre : « Évasion, Bien-être & Élégance » — journée bien-être et culture à Paris
 - Date : 31/07/2026, départ 6h30, **Parking de la Gare d'Angleur, Rue Denis Lecocq 1, 4031 Angleur**, bus VIP, retour le soir
 - Statut affiché : **complet / sold out** — « 18 participants »
@@ -195,6 +198,7 @@ Confirme exactement la palette du contrat (Brun `#3A2113`, Océan `#1C5B71`, Sol
 - ⚠️ `NEEDS_CONFIRMATION` : ce flyer utilise un domaine (`mindfultrip.nextgen-care.org`) et un email différents de ceux du flyer Berlin (`healingtrip.nextgen-cares.org`, `info-healingtrip@nextgen-cares.org`) — **incohérence entre supports à ne pas trancher silencieusement** (voir §47 du contrat sur le domaine canonique).
 
 ### Flyer Berlin
+
 - Titre : « Berlin en famille » — 8 jours / 7 nuits, du 15 au 22 août 2026
 - 10 expériences listées (Berlin panorama, Porte de Brandebourg + Tiergarten, East Side Gallery + croisière Spree, Musée d'Histoire naturelle, Musée allemand de la Technique, LEGOLAND Discovery Centre, Tierpark Berlin, jardin botanique, Tropical Islands, Tempelhofer Feld)
 - Statut affiché : **réservations clôturées**
@@ -202,11 +206,13 @@ Confirme exactement la palette du contrat (Brun `#3A2113`, Océan `#1C5B71`, Sol
 - Prochaines sorties annoncées sur ce flyer : **Reims (octobre 2026)** et **Düsseldorf, Allemagne (décembre 2026, marché de Noël)** — ⚠️ `NEEDS_CONFIRMATION` : Düsseldorf n'est mentionné nulle part dans le contrat (§11 ne liste que Paris/Berlin/Reims) ; à confirmer avant de créer une destination/voyage Düsseldorf.
 
 ### Flyer Reims
+
 - Titre : « Reims 2026 — Sur les routes du Champagne », du 2 au 10 octobre 2026
 - Programme : découverte des maisons de Champagne, balades dans les vignobles, patrimoine de Reims, moments bien-être/art de vivre
 - ⚠️ `NEEDS_CONFIRMATION` : **aucun statut de réservation ni prix visible sur ce flyer** (contrairement à Paris/Berlin) — le contrat (§11) demande explicitement de ne pas déduire le statut du flyer seul ; à traiter en `DRAFT` ou `UPCOMING` avec statut à confirmer.
 
 ### Synthèse des incohérences à trancher (ne pas choisir arbitrairement)
+
 - Domaine canonique : au moins 3 variantes vues à ce stade — `healing.nextgen-care.org` (contrat §47), `www.mindfultrip.nextgen-care.org` (flyer Paris), `www.healingtrip.nextgen-cares.org` (flyer Berlin, avec un « s » à `cares`). À figer via `NEXT_PUBLIC_SITE_URL` après confirmation humaine, conformément au contrat.
 - Adresse email de contact : `info-mindfultrip@nextgen-care.org` (Paris) vs `info-healingtrip@nextgen-cares.org` (Berlin) — à figer via `CONTACT_EMAIL` après confirmation.
 - Destination Düsseldorf mentionnée sur le flyer Berlin mais absente du contrat — à confirmer avant intégration en base.

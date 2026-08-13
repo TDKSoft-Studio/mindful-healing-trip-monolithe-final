@@ -5,6 +5,7 @@ version: "3"
 
 vars:
   COMPOSE: docker compose
+  PLAYWRIGHT_CACHE: ~/.cache/ms-playwright
 
 tasks:
   default:
@@ -21,6 +22,7 @@ tasks:
       - "test -f .env.local || cp .env.example .env.local"
       - 'echo "==> Installing dependencies"'
       - pnpm install
+      - task: playwright:install
       - 'echo "==> Starting postgres + mailpit"'
       - "{{.COMPOSE}} up -d postgres mailpit"
       - task: db:wait
@@ -46,59 +48,136 @@ tasks:
     desc: "Start the local dev environment (app + postgres + mailpit)."
     cmd: "{{.COMPOSE}} up"
 
+  # --- Playwright ---------------------------------------------------------
+  playwright:install:
+    desc: "Install Playwright browsers with system dependencies."
+    cmds:
+      - pnpm exec playwright install --with-deps chromium
+    status:
+      - test -d {{.PLAYWRIGHT_CACHE}}/chromium-*
+
+  playwright:install:deps:
+    desc: "Install only Playwright system dependencies (for CI)."
+    cmds:
+      - pnpm exec playwright install-deps chromium
+    status:
+      - test -d {{.PLAYWRIGHT_CACHE}}/chromium-*
+
   # --- Build --------------------------------------------------------------
   build:
     desc: "Production build of the Next.js app."
+    deps:
+      - deps:install
     cmd: pnpm build
+
+  # --- Dependencies -------------------------------------------------------
+  deps:install:
+    desc: "Install Node.js dependencies with frozen lockfile."
+    cmds:
+      - pnpm install --frozen-lockfile
+    sources:
+      - package.json
+      - pnpm-lock.yaml
+    generates:
+      - node_modules/**/*
 
   # --- Quality ------------------------------------------------------------
   lint:
     desc: "Lint the codebase."
+    deps:
+      - deps:install
     cmd: pnpm lint
 
   typecheck:
     desc: "TypeScript strict type checking (no emit)."
+    deps:
+      - deps:install
     cmd: pnpm typecheck
 
   format:
     desc: "Format the codebase with Prettier."
+    deps:
+      - deps:install
     cmd: pnpm format
 
   "format:check":
     desc: "Check formatting without writing changes."
+    deps:
+      - deps:install
     cmd: pnpm format:check
 
-  # --- Tests ----------------------------------------------------------------
+  # --- Tests --------------------------------------------------------------
   test:
     desc: "Run unit + integration tests (Vitest). Integration tests need a migrated, seeded DB."
+    deps:
+      - deps:install
     cmd: pnpm test
 
   "test:e2e":
     desc: "Run end-to-end tests (Playwright). Builds first."
-    cmds:
-      - pnpm build
-      - pnpm test:e2e
+    deps:
+      - deps:install
+      - playwright:install
+      - build
+    cmd: pnpm test:e2e
 
-  # --- Database ---------------------------------------------------------
+  "test:e2e:headed":
+    desc: "Run E2E tests with headed browser (for debugging)."
+    deps:
+      - deps:install
+      - playwright:install
+      - build
+    cmd: pnpm test:e2e --headed
+
+  "test:e2e:debug":
+    desc: "Run E2E tests in debug mode."
+    deps:
+      - deps:install
+      - playwright:install
+      - build
+    cmd: pnpm test:e2e --debug
+
+  # --- Database -----------------------------------------------------------
   "db:migrate":
     desc: "Create/apply a dev migration."
+    deps:
+      - deps:install
     cmd: pnpm db:migrate
+
+  "db:migrate:deploy":
+    desc: "Apply migrations in production/CI mode."
+    deps:
+      - deps:install
+    cmd: pnpm db:migrate:deploy
 
   "db:seed":
     desc: "Seed the development database."
+    deps:
+      - deps:install
     cmd: pnpm db:seed
 
   "db:reset":
     desc: "Reset the database (drop, recreate, migrate, seed)."
+    deps:
+      - deps:install
     cmd: pnpm db:reset
 
-  # --- Local CI -------------------------------------------------------------
+  "db:studio":
+    desc: "Open Prisma Studio to browse the database."
+    deps:
+      - deps:install
+    cmd: pnpm db:studio
+
+  # --- Local CI -----------------------------------------------------------
   # Keep this task's step order identical to .github/workflows/ci.yml
   # (contract §31-32) - a step added/removed here must be mirrored there.
   # Migrations + seed run before `test` because the integration tests
   # (tests/integration/) query real seeded Trip/Destination rows.
   ci:
     desc: "Run the full local CI pipeline - mirrors .github/workflows/ci.yml."
+    deps:
+      - deps:install
+      - playwright:install
     cmds:
       - task: "format:check"
       - task: lint
@@ -107,10 +186,23 @@ tasks:
       - cmd: pnpm db:seed
       - task: test
       - task: "test:e2e" # builds internally, then runs Playwright
+      - 'echo "✅ All CI checks passed!"'
 
-  # --- Docker -----------------------------------------------------------
+  # --- Quick checks -------------------------------------------------------
+  quick:
+    desc: "Fast checks for pre-commit (format, lint, typecheck)."
+    deps:
+      - deps:install
+    cmds:
+      - task: "format:check"
+      - task: lint
+      - task: typecheck
+
+  # --- Docker ------------------------------------------------------------
   "docker:build":
     desc: "Build the production Docker image."
+    deps:
+      - deps:install
     cmd: docker build -t mindful-healing-trips .
 
   "docker:up":
@@ -121,7 +213,27 @@ tasks:
     desc: "Stop the Docker Compose stack."
     cmd: "{{.COMPOSE}} down"
 
+  "docker:logs":
+    desc: "View logs from the Docker Compose stack."
+    cmd: "{{.COMPOSE}} logs -f"
+
+  "docker:clean":
+    desc: "Stop and remove all containers, volumes, and images."
+    cmd: "{{.COMPOSE}} down -v --rmi local"
+
   # --- Observability ------------------------------------------------------
   health:
     desc: "Check the running app's health endpoint."
     cmd: "curl -fsS http://localhost:3000/api/health && echo"
+
+  # --- Clean -------------------------------------------------------------
+  clean:
+    desc: "Clean all generated artifacts and dependencies."
+    cmds:
+      - rm -rf node_modules
+      - rm -rf .next
+      - rm -rf coverage
+      - rm -rf test-results
+      - rm -rf playwright-report
+      - rm -rf dist
+      - 'echo "🧹 Clean complete"'

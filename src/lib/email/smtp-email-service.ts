@@ -31,6 +31,16 @@ export class SmtpEmailService implements EmailService {
       // Mailpit and many local setups need no auth - only send credentials
       // when one is actually configured, rather than an empty/placeholder pair.
       auth: user ? { user, pass: password } : undefined,
+      // nodemailer's defaults are minutes-long (2 min connect, 30s greeting,
+      // 10 min socket) - fine for a human waiting on a mail client, much too
+      // long for a request handler. A slow/unreachable SMTP host (e.g. a
+      // container still starting up) should fail fast rather than hang;
+      // notifyByEmail() is fire-and-forget precisely so this doesn't block
+      // the visitor, but a bounded timeout still avoids leaking a hung
+      // connection attempt per submission.
+      connectionTimeout: 5_000,
+      greetingTimeout: 5_000,
+      socketTimeout: 5_000,
     });
 
     this.from = process.env.CONTACT_EMAIL ?? "no-reply@localhost";

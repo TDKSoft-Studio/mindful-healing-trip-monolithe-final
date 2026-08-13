@@ -81,7 +81,16 @@ export async function submitContactRequest(
     message: data.message,
   });
 
-  await notifyByEmail(contactRequest, trip?.title);
+  // Deliberately not awaited: the request is already durably stored above,
+  // so the visitor's response must not wait on (or be blocked by) SMTP
+  // round-trips - a slow/unreachable mail server would otherwise stall the
+  // submission for as long as nodemailer's connection/greeting timeouts
+  // allow (minutes by default). Safe as fire-and-forget here because this
+  // app runs as a long-lived Node process (standalone output), not a
+  // serverless function that gets torn down once the response is sent -
+  // notifyByEmail() also never rejects (each send is individually
+  // try/catch'd), so there's no unhandled rejection risk either.
+  void notifyByEmail(contactRequest, trip?.title);
 
   return { status: "success" };
 }

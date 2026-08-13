@@ -73,7 +73,10 @@ task health                          # vérifie /api/health sur une instance dé
   dehors de `task ci`, qui le fait automatiquement).
 - **End-to-end** (`e2e/`) : parcours utilisateur avec Playwright, couvrant
   desktop et mobile - `task test:e2e` (build une version de production
-  d'abord, puis lance le serveur standalone).
+  d'abord, puis lance le serveur standalone). Nécessite les navigateurs
+  Playwright installés une seule fois : `pnpm exec playwright install`
+  (la CI GitHub Actions le fait à chaque run, car ses runners sont
+  éphémères - voir `.github/workflows/ci.yml`).
 
 ## Design system
 

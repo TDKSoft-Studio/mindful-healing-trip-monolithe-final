@@ -167,6 +167,46 @@ Intégration des assets réels (logo, flyers, brand board) dès réception, en P
 
 Une seule question bloque réellement une décision (le reste peut être tranché raisonnablement en tant qu'ingénieur et sera documenté via `NEEDS_CONFIRMATION` dans le code) :
 
-1. **Assets de marque officiels manquants** : `logo-mindfultrip-historic-transparent.png`, `reims-01.png`, `berlin2026-fin.png`, `minfull-tripp-paris.jpeg`, `mindfultrip-brand-board-v1.0.png` ne sont présents ni dans le repository ni ailleurs sur le système accessible à cette session. Merci de les fournir (upload dans le repository, ex. sous `public/brand/` et/ou `docs/assets/brand-source/`) avant que la Phase 2 (Design System) et la Phase 4 (intégration visuelle finale) ne puissent être considérées comme terminées. La fondation technique (Phase 1) et une bonne partie du contenu (Phase 3) peuvent démarrer sans ces fichiers.
+1. **Assets de marque officiels manquants — partiellement résolu, action requise** : les 5 fichiers (`logo-mindfultrip-historic-transparent.png`, `reims-01.png`, `berlin2026-fin.png`, `minfull-tripp-paris.jpeg`, `mindfultrip-brand-board-v1.0.png`) ont été **montrés visuellement** dans la conversation le 2026-08-13, ce qui confirme leur contenu (palette exacte identique au contrat, typographies Lora/Montserrat, contenu des flyers Paris/Berlin/Reims). **Cependant, cette session Claude Code n'a pas d'outil pour extraire les octets bruts d'une image collée dans le chat** — je peux l'analyser visuellement mais je ne peux pas la committer telle quelle dans le repository. Recréer ces fichiers par génération d'image serait une violation directe de la règle du contrat (§2 : « ne jamais générer une nouvelle version du logo avec une IA »), donc **je ne le ferai pas**.
+   → **Action requise côté utilisateur** : déposer les 5 fichiers originaux directement dans le repository (upload via l'interface GitHub ou `git add`/`git push` sur la branche), idéalement sous :
+   - `public/brand/logo-mindfultrip-historic-transparent.png`
+   - `docs/assets/brand-source/` pour les flyers et le brand board sources (`reims-01.png`, `berlin2026-fin.png`, `minfull-tripp-paris.jpeg`, `mindfultrip-brand-board-v1.0.png`)
+   Une fois poussés sur la branche, je les intégrerai tels quels (Phase 2/4), sans aucune retouche.
 
 Aucune autre question n'est bloquante : package manager, version Node, emplacement du contrat, statut définitif de Reims, domaine canonique final, et périmètre de l'admin sont toutes des décisions que je peux prendre raisonnablement (documentées ci-dessus) ou différer proprement via des placeholders `NEEDS_CONFIRMATION`, conformément à la règle §68 du contrat.
+
+---
+
+## 9. Contenu confirmé visuellement (2026-08-13) — à utiliser en Phase 3, sous réserve des fichiers réels
+
+Les visuels partagés confirment/complètent les données déjà retranscrites dans le contrat (§11). Pour rester fidèle à la règle « ne pas inventer / ne pas extrapoler » (§10, §68), voici ce qui est **explicitement lisible sur les visuels** et ce qui reste **`NEEDS_CONFIRMATION`** :
+
+### Logo
+Confirme la description du contrat : cercle brun, soleil + deux palmiers, vague océan, texte « MINDFUL HEALING TRIPS ». Rien à modifier ; asset à intégrer tel quel dès réception du fichier réel.
+
+### Brand board
+Confirme exactement la palette du contrat (Brun `#3A2113`, Océan `#1C5B71`, Soleil `#E48E51`, Or `#E4AF56`, Sable `#EDD1AD`, Ivoire `#F9EADC`) et les typographies (Lora / Montserrat). Aucune divergence avec le contrat texte.
+
+### Flyer Paris
+- Titre : « Évasion, Bien-être & Élégance » — journée bien-être et culture à Paris
+- Date : 31/07/2026, départ 6h30, **Parking de la Gare d'Angleur, Rue Denis Lecocq 1, 4031 Angleur**, bus VIP, retour le soir
+- Statut affiché : **complet / sold out** — « 18 participants »
+- Contact affiché sur ce flyer : tél./WhatsApp `+32 460 960 294`, WhatsApp additionnel `+32 496 05 18 10`, email `info-mindfultrip@nextgen-care.org`, site `www.mindfultrip.nextgen-care.org`
+- ⚠️ `NEEDS_CONFIRMATION` : ce flyer utilise un domaine (`mindfultrip.nextgen-care.org`) et un email différents de ceux du flyer Berlin (`healingtrip.nextgen-cares.org`, `info-healingtrip@nextgen-cares.org`) — **incohérence entre supports à ne pas trancher silencieusement** (voir §47 du contrat sur le domaine canonique).
+
+### Flyer Berlin
+- Titre : « Berlin en famille » — 8 jours / 7 nuits, du 15 au 22 août 2026
+- 10 expériences listées (Berlin panorama, Porte de Brandebourg + Tiergarten, East Side Gallery + croisière Spree, Musée d'Histoire naturelle, Musée allemand de la Technique, LEGOLAND Discovery Centre, Tierpark Berlin, jardin botanique, Tropical Islands, Tempelhofer Feld)
+- Statut affiché : **réservations clôturées**
+- Contact affiché : WhatsApp `+32 460 960 294`, email `info-healingtrip@nextgen-cares.org`, site `www.healingtrip.nextgen-cares.org`, Instagram `@mindful.healingtrip`, Facebook `Mindful Healing Trip`
+- Prochaines sorties annoncées sur ce flyer : **Reims (octobre 2026)** et **Düsseldorf, Allemagne (décembre 2026, marché de Noël)** — ⚠️ `NEEDS_CONFIRMATION` : Düsseldorf n'est mentionné nulle part dans le contrat (§11 ne liste que Paris/Berlin/Reims) ; à confirmer avant de créer une destination/voyage Düsseldorf.
+
+### Flyer Reims
+- Titre : « Reims 2026 — Sur les routes du Champagne », du 2 au 10 octobre 2026
+- Programme : découverte des maisons de Champagne, balades dans les vignobles, patrimoine de Reims, moments bien-être/art de vivre
+- ⚠️ `NEEDS_CONFIRMATION` : **aucun statut de réservation ni prix visible sur ce flyer** (contrairement à Paris/Berlin) — le contrat (§11) demande explicitement de ne pas déduire le statut du flyer seul ; à traiter en `DRAFT` ou `UPCOMING` avec statut à confirmer.
+
+### Synthèse des incohérences à trancher (ne pas choisir arbitrairement)
+- Domaine canonique : au moins 3 variantes vues à ce stade — `healing.nextgen-care.org` (contrat §47), `www.mindfultrip.nextgen-care.org` (flyer Paris), `www.healingtrip.nextgen-cares.org` (flyer Berlin, avec un « s » à `cares`). À figer via `NEXT_PUBLIC_SITE_URL` après confirmation humaine, conformément au contrat.
+- Adresse email de contact : `info-mindfultrip@nextgen-care.org` (Paris) vs `info-healingtrip@nextgen-cares.org` (Berlin) — à figer via `CONTACT_EMAIL` après confirmation.
+- Destination Düsseldorf mentionnée sur le flyer Berlin mais absente du contrat — à confirmer avant intégration en base.

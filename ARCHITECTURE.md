@@ -31,12 +31,17 @@ adaptée au fur et à mesure des besoins réels plutôt que créée en une fois
 
 ## Flux de données
 
-Phase 1 : aucune donnée métier - le schéma Prisma est volontairement vide
-(connexion vérifiée, zéro modèle). Phase 3 introduira `Trip`, `Destination`
-et l'enum de statut décrits au contrat §9, alimentés par
-`prisma/seed.ts` à partir du contenu confirmé dans
-`docs/ENGINEERING_DISCOVERY.md` (section 9), avec `NEEDS_CONFIRMATION`
-explicite pour toute donnée commerciale non certaine (contrat §10/§68).
+`Trip` et `Destination` (contrat §9) sont en base depuis la Phase 3, avec
+l'enum `TripStatus` répliqué depuis `src/lib/trip-status.ts` (posé en
+Phase 2). Les pages ne doivent jamais interroger Prisma directement -
+elles passent par `src/features/trips/queries.ts` et
+`src/features/destinations/queries.ts`, qui filtrent systématiquement sur
+`published`/`publishedAt` (un brouillon ne doit jamais fuiter côté
+visiteur). `prisma/seed.ts` peuple Paris/Berlin/Reims à partir du contenu
+confirmé dans `docs/ENGINEERING_DISCOVERY.md` (section 9), avec
+`NEEDS_CONFIRMATION` explicite pour toute donnée commerciale non certaine
+(contrat §10/§68) - notamment le statut de Reims et tous les prix, qui
+restent `null`.
 
 ## Base de données
 
@@ -57,6 +62,28 @@ Prisma ORM v7 a changé de modèle de génération et de connexion :
 - Les migrations et le seed (`prisma/seed.ts`, exécuté via `tsx`) sont
   déclenchés explicitement (`task db:migrate`, `task db:seed`) - Prisma v7 ne
   les enchaîne plus automatiquement.
+- **Vitest ne charge pas `.env.local` automatiquement** (contrairement à
+  Next.js et à la CLI Prisma) : `tests/setup-env.ts` le fait explicitement
+  via `setupFiles`. Sans ça, `DATABASE_URL` est `undefined` dans les tests
+  d'intégration, et le driver `pg` d'`@prisma/adapter-pg` échoue de façon
+  trompeuse - la première requête sur le pool peut réussir avant qu'une
+  requête suivante échoue avec `no PostgreSQL user name specified in
+startup packet` (bug réel rencontré et corrigé pendant la Phase 3).
+- **`node .next/standalone/server.js` (la sortie standalone) ne charge pas
+  non plus `.env.local` tout seul**, contrairement à `next dev`/`next
+build` - c'est le comportement documenté et attendu de la sortie
+  standalone (pensée pour recevoir ses variables d'environnement du
+  runtime conteneur, pas d'un fichier dotenv commité). C'est exactement ce
+  que fait `compose.yaml` (`env_file`/`environment`) pour le développement
+  local et ce qu'un vrai déploiement doit faire en production. Pour que
+  `pnpm start` fonctionne aussi hors Docker (utilisé par le `webServer` de
+  Playwright dans `task test:e2e`), le script `start` utilise le flag natif
+  Node 22 `--env-file-if-exists=.env.local` (pas de dépendance
+  supplémentaire) - silencieux si le fichier est absent (cas Docker/prod),
+  charge la valeur s'il est présent (cas dev/test local). Bug réel
+  rencontré et corrigé pendant la Phase 4 (une page `/voyages/[slug]`
+  renvoyait une 500 "User was denied access on the database" en local sans
+  cette variable exportée manuellement).
 
 ## Sécurité
 
@@ -73,9 +100,12 @@ Prisma ORM v7 a changé de modèle de génération et de connexion :
 ## Stratégie SEO
 
 Phase 1 pose les bases : `metadataBase` dérivé de `NEXT_PUBLIC_SITE_URL`,
-`lang="fr"`, titres templatés (`%s | Mindful Healing Trips`). Le travail
-complet (sitemap, robots.txt, Open Graph, JSON-LD par voyage/destination) est
-Phase 6 (contrat §18, §60) - ne pas le considérer optionnel.
+`lang="fr"`, titres templatés (`%s | Mindful Healing Trips`). Phase 4 ajoute
+un titre/description par page, y compris dynamiques pour chaque voyage/
+destination (`generateMetadata`, à partir de `seoTitle`/`seoDescription` ou
+d'un repli sur le titre/résumé). Le travail complet (sitemap, robots.txt,
+Open Graph, JSON-LD) reste Phase 6 (contrat §18, §60) - ne pas le considérer
+optionnel.
 
 ## Stratégie images
 
@@ -116,6 +146,130 @@ Ces valeurs doivent être injectées par l'environnement de déploiement (build
 arg / variable d'env), jamais codées en dur dans le code applicatif -
 `.env.example` documente localhost comme valeur de développement.
 
+## Design system (Phase 2)
+
+Components built so far (contract §22), under `src/components/`:
+
+- `ui/`: `Container`, `SectionHeading`, `Button`, `Link`, `Badge`,
+  `StatusBadge`, `Card`, `Accordion`, `Breadcrumb`.
+- `layout/`: `Header` (sticky, logo, desktop nav, CTA), `Footer` (nav,
+  contact, social, legal, copyright - all from `src/lib/site-config.ts`).
+- `navigation/`: `MobileNavigation` (accessible disclosure menu).
+- `forms/`: `FormField` (label + input/textarea + error, accessible).
+
+**Deliberately not built yet**: `TripCard`, `DestinationCard`,
+`ImageGallery`, `ContactForm`, `BookingCTA`, `Modal`. These need real
+`Trip`/`Destination` shapes (Phase 3) or a real form flow (Phase 5) to be
+meaningful - building them now would mean guessing a data shape and
+reworking it later (contract §66: no abstraction before a real need).
+`StatusBadge` is the one exception: its input (`TripStatus`) is fully
+specified by the contract itself (§9), so `src/lib/trip-status.ts` defines
+it now, ahead of the Prisma model, with unit tests for the status-display
+rules the contract mandates (§34) - Phase 3's Prisma `TripStatus` enum must
+stay in sync with this file's values.
+
+**`cn()` uses `tailwind-merge`+`clsx`** (not a plain string join): once
+components started overriding each other's default classes (e.g. Header's
+nav links overriding `Link`'s default `underline`), a plain join left both
+the base and override utility class present, and which one wins is decided
+by Tailwind's generated CSS order - not argument order. This silently broke
+nav styling (visible only by actually rendering the page, not by lint or
+typecheck) before the fix. See `tests/unit/cn.test.ts` for the regression
+test and `src/lib/utils/cn.ts` for the explanation.
+
+**Accessibility is enforced at the token level, not just per-component**:
+`text-muted-foreground` and friends in `globals.css` are chosen and
+comment-documented to meet WCAG AA contrast (≥4.5:1 for text, ≥3:1 for the
+focus ring) - arbitrary opacity utilities like `text-brand-brown/50` are
+not used for text, because they silently fail contrast (verified ~2.7:1,
+see the token comments). `e2e/accessibility.spec.ts` runs an automated
+axe scan (WCAG 2.0/2.1 A/AA) against the homepage on every `task ci` run.
+
+## Content/Data (Phase 3)
+
+`Trip` et `Destination` (contrat §9), plus l'enum `TripStatus` répliqué
+depuis `src/lib/trip-status.ts` (Phase 2), sont maintenant dans
+`prisma/schema.prisma` avec une migration
+(`prisma/migrations/20260813134935_add_trip_destination_models`).
+
+- **Couche repository** : `src/features/trips/queries.ts` et
+  `src/features/destinations/queries.ts` sont le seul endroit qui appelle
+  `prisma.trip`/`prisma.destination` - les pages doivent passer par elles,
+  jamais par le client Prisma directement (contrat §38). Chaque requête
+  filtre sur `published`/`publishedAt` pour qu'un brouillon ne fuite jamais
+  côté visiteur.
+- **Contenu du seed** (`prisma/seed.ts`) entièrement sourcé depuis
+  `docs/ENGINEERING_DISCOVERY.md` section 9 - ce qui est littéralement
+  confirmé sur les flyers officiels, rien d'extrapolé. Notamment : tous les
+  `price` sont `null` (aucun n'a été confirmé), et le statut de Reims est
+  `UPCOMING` avec un commentaire `NEEDS_CONFIRMATION` explicite - son flyer
+  ne montre ni statut de réservation ni prix, contrairement à Paris/Berlin,
+  et le contrat (§11) interdit explicitement d'en déduire un. Les statuts
+  de Paris/Berlin (`COMPLETED`/`CLOSED`) découlent de la règle du contrat
+  sur comment traiter un voyage passé/en clôture par rapport à la date
+  actuelle du projet, pas d'une lecture littérale du flyer (celui de Paris
+  dit littéralement "sold out", mais la date est passée, donc le contrat
+  §11 impose `COMPLETED`).
+- Le seed est idempotent (`upsert` sur `slug`) - `task db:seed` peut
+  tourner autant de fois que nécessaire sans dupliquer de lignes.
+- **Tests d'intégration** (`tests/integration/`) exécutent de vraies
+  requêtes contre un Postgres migré + seedé (contrat §34). `task ci`/
+  `ci.yml` exécutent maintenant `db:migrate:deploy` puis `db:seed` _avant_
+  `test`, pour que ces tests aient de vraies données à vérifier - les
+  tests unitaires qui ne touchent pas la DB cohabitent dans le même run
+  Vitest.
+- **Bug Vitest trouvé et corrigé** : contrairement à Next.js et à la CLI
+  Prisma, Vitest ne charge pas `.env.local` automatiquement. Sans
+  `tests/setup-env.ts` (branché via `setupFiles`), `DATABASE_URL` était
+  `undefined` dans les tests, et le pool `pg` d'`@prisma/adapter-pg`
+  échouait de façon trompeuse - la première requête sur une connexion
+  fraîche pouvait réussir avant qu'une suivante échoue avec `no PostgreSQL
+user name specified in startup packet`. Bug réel, visible uniquement en
+  exécutant vraiment les tests d'intégration, pas via lint/typecheck.
+
+## Public Website (Phase 4)
+
+Pages publiques (contrat §41/§58) : `/`, `/voyages`, `/voyages/[slug]`,
+`/destinations`, `/destinations/[slug]`, `/a-propos`, `/contact`,
+`/mentions-legales`, `/politique-confidentialite`. Toutes lisent leurs
+données via les repositories Phase 3, jamais de contenu codé en dur.
+
+- **`TripCard`/`DestinationCard`/`BookingCTA`/`ImageGallery`** (déférés en
+  Phase 2, contrat §22) construits maintenant que de vraies données
+  existent pour les dimensionner. `ImageGallery` ne s'affiche pas encore
+  (aucune vraie photo fournie, `gallery: []` partout) mais est câblé et
+  prêt.
+- **Sections conditionnelles** : chaque section d'une fiche voyage/
+  destination (galerie, expériences, points forts, infos pratiques, inclus/
+  exclus, prix) ne s'affiche que si la donnée existe - pas de bloc vide ou
+  de placeholder trompeur pour du contenu non confirmé.
+- **`BookingCTA` distingue _pourquoi_ la réservation n'est pas possible**
+  (`src/lib/trip-status.ts#getBookingUnavailableMessage`) plutôt qu'un
+  message générique "n'est plus ouvert" - faux pour un voyage `UPCOMING`
+  qui n'a jamais été ouvert. Bug réel trouvé en relisant visuellement la
+  page Reims (le seul voyage `UPCOMING` seedé), pas détectable par
+  lint/typecheck/tests avant l'ajout du test de régression correspondant.
+- **`/contact`** n'affiche que les canaux de contact directs
+  (email/WhatsApp) - pas de `<form>` non fonctionnel : le vrai formulaire
+  (validation, anti-spam, envoi d'email) est Phase 5.
+- **`/mentions-legales` et `/politique-confidentialite`** sont des
+  placeholders `TODO_CONTENT_CONFIRMATION` explicites (contrat §37) -
+  aucun texte juridique n'a été fourni, donc aucun n'est inventé ; `robots:
+{ index: false }` tant que le contenu réel n'est pas en place.
+- **Titres `<h1>` uniques par page** : `SectionHeading` génère un `<h2>`
+  par défaut (pour labelliser une section sur une page qui a déjà son
+  propre `<h1>`, comme le hero de la homepage) mais accepte `level={1}`
+  pour les pages de listing (`/voyages`, `/destinations`, `/a-propos`,
+  `/contact`) qui n'avaient sinon aucun `<h1>` - bug réel trouvé par le
+  test E2E du parcours visiteur (`getByRole("heading", { level: 1 })` ne
+  trouvait rien), pas par lint/typecheck.
+- **Contraste réel cassé sur les cartes sans photo** : le texte du nom de
+  destination affiché en `text-brand-brown/60` sur fond `bg-brand-sand`
+  (`TripCard`/`DestinationCard` quand `coverImage`/`heroImage` est `null`)
+  mesurait ~3.57:1, sous le seuil AA (4.5:1) - trouvé par le scan axe
+  automatisé (`e2e/accessibility.spec.ts`) une fois étendu à ces pages,
+  corrigé en repassant en `text-brand-brown` (opacité pleine).
+
 ## CMS
 
 Aucun CMS en Phase 1-3. Le contenu métier (voyages, destinations) vit en
@@ -123,12 +277,17 @@ base PostgreSQL via Prisma, séparé du code (contrat §38), ce qui permet
 d'introduire un CMS plus tard sans réécrire l'interface si le besoin se
 confirme. Aucun CMS n'est construit préventivement (contrat §39).
 
-## Limites connues (Phase 1)
+## Limites connues
 
-- Aucun modèle métier (`Trip`, `Destination`) - Phase 3.
-- Aucune page publique réelle - homepage actuelle est un placeholder de
-  fondation (Phase 4).
-- Aucun composant de design system (Button, Card, etc.) - Phase 2.
+- Statut de Reims et tous les prix `NEEDS_CONFIRMATION` - voir
+  `prisma/seed.ts` et `docs/ENGINEERING_DISCOVERY.md` section 9.
+- `ContactForm` toujours pas construit - Phase 5, une fois la validation/
+  l'anti-spam/l'envoi d'email définis. `/contact` n'affiche pour l'instant
+  que les canaux directs (email/WhatsApp).
+- `/mentions-legales` et `/politique-confidentialite` sont des placeholders
+  explicites - textes juridiques réels non fournis (contrat §37).
+- Aucune vraie photographie (hero, voyages, destinations) - tout est
+  `TODO_ASSET`, `ImageGallery` est câblé mais ne s'affiche jamais encore.
 - Le build/run Docker n'a pas pu être exécuté dans l'environnement où ce
   code a été écrit (démon Docker indisponible dans ce bac à sable) ; la
   logique a été validée indirectement (`docker compose config`, et

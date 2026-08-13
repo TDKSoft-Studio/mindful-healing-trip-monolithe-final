@@ -13,6 +13,7 @@ export default defineConfig({
   },
   test: {
     environment: "node",
+    setupFiles: ["./tests/setup-env.ts"],
     include: ["tests/**/*.test.ts"],
     exclude: ["e2e/**", "node_modules/**"],
   },

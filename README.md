@@ -6,9 +6,9 @@ pour le contrat d'ingénierie de référence du projet, et
 [`docs/ENGINEERING_DISCOVERY.md`](docs/ENGINEERING_DISCOVERY.md) pour l'état
 des lieux initial du repository.
 
-> **Statut** : Phase 1 (Foundation). Le stack technique, Docker, la base de
-> données et la CI sont en place ; le design system complet et les pages
-> publiques arrivent en Phase 2+.
+> **Statut** : Phase 4 (Public Website). Le site public est navigable de
+> bout en bout : accueil, voyages, destinations, à propos, contact, mentions
+> légales. Le formulaire de contact fonctionnel arrive en Phase 5.
 
 ## Stack
 
@@ -64,19 +64,54 @@ task health                          # vérifie /api/health sur une instance dé
 
 ## Tests
 
-- **Unitaires** (`tests/unit/`) : logique métier, helpers - `task test`.
+- **Unitaires** (`tests/unit/`) : logique métier, helpers - pas de DB.
+- **Intégration** (`tests/integration/`) : requêtes réelles contre Postgres
+  via les repositories (`src/features/*/queries.ts`) - nécessite une base
+  migrée et seedée (`task db:migrate && task db:seed` avant `task test` en
+  dehors de `task ci`, qui le fait automatiquement).
 - **End-to-end** (`e2e/`) : parcours utilisateur avec Playwright, couvrant
   desktop et mobile - `task test:e2e` (build une version de production
   d'abord, puis lance le serveur standalone).
 
+## Design system
+
+Composants réutilisables sous `src/components/` (`ui/`, `layout/`,
+`navigation/`, `forms/`, `travel/`, `destinations/`, `shared/`), tokens de
+marque dans `src/app/globals.css`, configuration centrale (nav, contact,
+réseaux) dans `src/lib/site-config.ts`. Détail des choix et de ce qui reste
+volontairement non construit (ContactForm...) dans
+[`ARCHITECTURE.md`](ARCHITECTURE.md).
+
+## Pages
+
+```text
+/                              accueil (hero + prochains voyages)
+/voyages                       tous les voyages
+/voyages/[slug]                fiche voyage
+/destinations                  toutes les destinations
+/destinations/[slug]           fiche destination + ses voyages
+/a-propos                      positionnement
+/contact                       canaux de contact directs (formulaire en Phase 5)
+/mentions-legales              placeholder - contenu à confirmer
+/politique-confidentialite     placeholder - contenu à confirmer
+```
+
 ## Base de données
 
-Le schéma est géré par Prisma (`prisma/schema.prisma`). Prisma ORM v7 exige
-un driver adapter explicite pour PostgreSQL (`@prisma/adapter-pg`) - voir
+Le schéma est géré par Prisma (`prisma/schema.prisma`) : `Trip`,
+`Destination`, et l'enum `TripStatus`. Prisma ORM v7 exige un driver
+adapter explicite pour PostgreSQL (`@prisma/adapter-pg`) - voir
 [`ARCHITECTURE.md`](ARCHITECTURE.md) pour le détail. Le client généré
 (`src/generated/prisma`) n'est jamais commité ; il est régénéré
 automatiquement à l'installation (`postinstall`) et après chaque changement
 de schéma.
+
+`prisma/seed.ts` peuple trois voyages (Paris, Berlin, Reims) à partir du
+contenu confirmé dans `docs/ENGINEERING_DISCOVERY.md` - voir
+[`ARCHITECTURE.md`](ARCHITECTURE.md) pour ce qui reste
+`NEEDS_CONFIRMATION` (statut de Reims, tous les prix). Les pages ne
+doivent jamais appeler Prisma directement : elles passent par
+`src/features/trips/queries.ts` et `src/features/destinations/queries.ts`.
 
 ```bash
 task db:migrate   # créer/appliquer une migration en dev

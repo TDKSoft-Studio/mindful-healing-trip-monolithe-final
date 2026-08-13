@@ -1,37 +1,64 @@
-import Image from "next/image";
-
-import { cn } from "@/lib/utils/cn";
+import { Button } from "@/components/ui/button";
+import { Container } from "@/components/ui/container";
+import { SectionHeading } from "@/components/ui/section-heading";
+import { TripCard } from "@/components/travel/trip-card";
+import { listUpcomingTrips } from "@/features/trips/queries";
+import { siteConfig } from "@/lib/site-config";
 
 /**
- * Foundation placeholder homepage (Phase 1).
+ * Homepage (contract §12-13), built with the Phase 2 design system and
+ * Phase 3 content.
  *
- * This proves the stack end-to-end (fonts, design tokens, image pipeline,
- * routing) without building the real design system - that's Phase 2
- * (contract §56), and the full homepage structure (hero, trips, etc.) is
- * Phase 4 (contract §58/§12).
+ * The contract calls for "une photographie immersive" in the hero - no
+ * real hero photograph has been provided yet (the flyers were
+ * reference-only and are not meant to be displayed on the site, contract
+ * §12). Shipping a generated/stock image in its place would misrepresent
+ * it as real photography (contract §45), so this stays a text-led hero
+ * until a real photo is supplied. TODO_ASSET: hero photograph.
  */
-export default function HomePage() {
+export default async function HomePage() {
+  const upcomingTrips = await listUpcomingTrips();
+
   return (
-    <main className="flex flex-1 flex-col items-center justify-center gap-6 px-6 py-24 text-center">
-      <Image
-        src="/brand/logo-mindfultrip-historic-transparent.png"
-        alt="Mindful Healing Trips"
-        width={160}
-        height={160}
-        priority
-      />
-      <h1
-        className={cn("font-heading text-brand-brown text-4xl font-semibold")}
-      >
-        Voyagez. Respirez. Partagez.
-      </h1>
-      <p className="text-brand-brown/80 max-w-md">
-        Des expériences pensées pour découvrir, se ressourcer et créer des
-        souvenirs ensemble.
-      </p>
-      <p className="text-brand-brown/50 text-sm">
-        Portail en construction - Phase 1 (Foundation).
-      </p>
+    <main id="main-content" className="flex flex-1 flex-col">
+      <section className="py-24 sm:py-32">
+        <Container className="flex flex-col items-center gap-6 text-center">
+          <h1 className="font-heading text-foreground max-w-3xl text-4xl font-semibold sm:text-6xl">
+            {siteConfig.tagline}
+          </h1>
+          <p className="text-muted-foreground max-w-xl text-lg">
+            {siteConfig.description}
+          </p>
+          <div className="flex flex-col gap-4 sm:flex-row">
+            <Button href="/voyages" size="lg">
+              Découvrir les voyages
+            </Button>
+            <Button href="/contact" variant="outline" size="lg">
+              Nous contacter
+            </Button>
+          </div>
+        </Container>
+      </section>
+
+      {upcomingTrips.length > 0 ? (
+        <section className="py-16 sm:py-24">
+          <Container className="flex flex-col gap-10">
+            <SectionHeading
+              eyebrow="Prochains voyages"
+              title="Les prochaines expériences à vivre"
+              description="Voyages ouverts aux réservations ou bientôt annoncés."
+            />
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {upcomingTrips.map((trip) => (
+                <TripCard key={trip.id} trip={trip} />
+              ))}
+            </div>
+            <Button href="/voyages" variant="outline" className="self-center">
+              Voir tous les voyages
+            </Button>
+          </Container>
+        </section>
+      ) : null}
     </main>
   );
 }

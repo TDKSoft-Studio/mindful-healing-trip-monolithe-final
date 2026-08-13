@@ -1,0 +1,124 @@
+# Taskfile - primary developer interface for Mindful Healing Trips
+# (contract §25-26). Mirrors .github/workflows/ci.yml exactly so that
+# `task ci` green locally means CI green on GitHub (contract §31-32).
+version: "3"
+
+vars:
+  COMPOSE: docker compose
+
+tasks:
+  default:
+    desc: "List available tasks."
+    cmd: task --list
+
+  # --- Setup / dev ------------------------------------------------------
+  setup:
+    desc: "From zero to a working dev environment (idempotent)."
+    cmds:
+      - 'echo "==> Checking prerequisites"'
+      - 'command -v docker >/dev/null || { echo "Docker is required (see docker.com)"; exit 1; }'
+      - 'command -v pnpm >/dev/null || { echo "pnpm is required (see pnpm.io)"; exit 1; }'
+      - "test -f .env.local || cp .env.example .env.local"
+      - 'echo "==> Installing dependencies"'
+      - pnpm install
+      - 'echo "==> Starting postgres + mailpit"'
+      - "{{.COMPOSE}} up -d postgres mailpit"
+      - task: db:wait
+      - 'echo "==> Applying migrations"'
+      - pnpm db:migrate:deploy
+      - 'echo "==> Seeding development data"'
+      - pnpm db:seed
+      - 'echo "==> Setup complete. Next: task dev, or task ci"'
+
+  db:wait:
+    desc: "Wait until postgres is ready to accept connections."
+    internal: true
+    cmds:
+      - |
+        for i in $(seq 1 30); do
+          {{.COMPOSE}} exec -T postgres pg_isready -U mindfultrip -d mindfultrip >/dev/null 2>&1 && exit 0
+          sleep 1
+        done
+        echo "postgres did not become ready in time"
+        exit 1
+
+  dev:
+    desc: "Start the local dev environment (app + postgres + mailpit)."
+    cmd: "{{.COMPOSE}} up"
+
+  # --- Build --------------------------------------------------------------
+  build:
+    desc: "Production build of the Next.js app."
+    cmd: pnpm build
+
+  # --- Quality ------------------------------------------------------------
+  lint:
+    desc: "Lint the codebase."
+    cmd: pnpm lint
+
+  typecheck:
+    desc: "TypeScript strict type checking (no emit)."
+    cmd: pnpm typecheck
+
+  format:
+    desc: "Format the codebase with Prettier."
+    cmd: pnpm format
+
+  "format:check":
+    desc: "Check formatting without writing changes."
+    cmd: pnpm format:check
+
+  # --- Tests ----------------------------------------------------------------
+  test:
+    desc: "Run unit tests (Vitest)."
+    cmd: pnpm test
+
+  "test:e2e":
+    desc: "Run end-to-end tests (Playwright). Builds first."
+    cmds:
+      - pnpm build
+      - pnpm test:e2e
+
+  # --- Database ---------------------------------------------------------
+  "db:migrate":
+    desc: "Create/apply a dev migration."
+    cmd: pnpm db:migrate
+
+  "db:seed":
+    desc: "Seed the development database."
+    cmd: pnpm db:seed
+
+  "db:reset":
+    desc: "Reset the database (drop, recreate, migrate, seed)."
+    cmd: pnpm db:reset
+
+  # --- Local CI -------------------------------------------------------------
+  # Keep this task's step order identical to .github/workflows/ci.yml
+  # (contract §31-32) - a step added/removed here must be mirrored there.
+  ci:
+    desc: "Run the full local CI pipeline - mirrors .github/workflows/ci.yml."
+    cmds:
+      - task: "format:check"
+      - task: lint
+      - task: typecheck
+      - task: test
+      - cmd: pnpm db:migrate:deploy
+      - task: "test:e2e" # builds internally, then runs Playwright
+
+  # --- Docker -----------------------------------------------------------
+  "docker:build":
+    desc: "Build the production Docker image."
+    cmd: docker build -t mindful-healing-trips .
+
+  "docker:up":
+    desc: "Start the full stack via Docker Compose."
+    cmd: "{{.COMPOSE}} up -d"
+
+  "docker:down":
+    desc: "Stop the Docker Compose stack."
+    cmd: "{{.COMPOSE}} down"
+
+  # --- Observability ------------------------------------------------------
+  health:
+    desc: "Check the running app's health endpoint."
+    cmd: "curl -fsS http://localhost:3000/api/health && echo"

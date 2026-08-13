@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Mirrors `task ci` exactly (contract §30-32): format:check -> lint ->
+# typecheck -> test -> build -> test:e2e. Keep these two in sync - if a step
+# is added/removed here, mirror it in Taskfile.yml, and vice versa.
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://mindfultrip:devpassword@localhost:5432/mindfultrip?schema=public
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+      CONTACT_EMAIL: info-healingtrip@nextgen-care.org
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: mindfultrip
+          POSTGRES_PASSWORD: devpassword
+          POSTGRES_DB: mindfultrip
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U mindfultrip -d mindfultrip"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Format check
+        run: pnpm format:check
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Unit tests
+        run: pnpm test
+
+      - name: Apply database migrations
+        run: pnpm db:migrate:deploy
+
+      - name: Build
+        run: pnpm build
+
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: E2E tests
+        run: pnpm test:e2e
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

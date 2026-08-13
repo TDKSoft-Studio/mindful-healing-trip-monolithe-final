@@ -6,12 +6,12 @@ pour le contrat d'ingénierie de référence du projet, et
 [`docs/ENGINEERING_DISCOVERY.md`](docs/ENGINEERING_DISCOVERY.md) pour l'état
 des lieux initial du repository.
 
-> **Statut** : Phase 6 (SEO / Accessibilité / Performance). Le site public
-> est navigable de bout en bout avec un formulaire de contact fonctionnel
-> (Phase 5). Phase 6 ajoute sitemap.xml, robots.txt, données structurées
-> Schema.org, Open Graph/Twitter cards et canonical sur toutes les pages,
-> et étend le scan d'accessibilité automatisé (axe) à l'ensemble des pages
-> publiques.
+> **Statut** : Phase 8 (Production Readiness). Le site public est
+> navigable de bout en bout, avec formulaire de contact fonctionnel
+> (Phase 5) et SEO/accessibilité complets (Phase 6). Phase 8 ajoute les
+> headers de sécurité (CSP, HSTS, etc.), vérifie la stratégie de
+> déploiement, et documente sauvegardes/rollback/monitoring - voir
+> `ARCHITECTURE.md` section « Production readiness ».
 
 ## Stack
 
@@ -61,6 +61,7 @@ task docker:build                  # build de l'image Docker de production
 task docker:up                      # démarre la stack complète via Docker Compose
 task docker:down                     # arrête la stack Docker Compose
 task health                          # vérifie /api/health sur une instance démarrée
+task security:audit                  # vérifie les dépendances (pnpm audit)
 ```
 
 `task --list` affiche la liste à jour avec description.

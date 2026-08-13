@@ -6,12 +6,15 @@ pour le contrat d'ingénierie de référence du projet, et
 [`docs/ENGINEERING_DISCOVERY.md`](docs/ENGINEERING_DISCOVERY.md) pour l'état
 des lieux initial du repository.
 
-> **Statut** : Phase 8 (Production Readiness). Le site public est
-> navigable de bout en bout, avec formulaire de contact fonctionnel
-> (Phase 5) et SEO/accessibilité complets (Phase 6). Phase 8 ajoute les
-> headers de sécurité (CSP, HSTS, etc.), vérifie la stratégie de
-> déploiement, et documente sauvegardes/rollback/monitoring - voir
-> `ARCHITECTURE.md` section « Production readiness ».
+> **Statut** : **v1.0.0** - première version du site. Le portail public est
+> navigable de bout en bout (accueil, voyages, destinations, à propos,
+> contact, mentions légales), avec formulaire de contact fonctionnel
+> (Phase 5), SEO/accessibilité complets (Phase 6), headers de sécurité et
+> production readiness (Phase 8), et une couverture de tests de 90% sur la
+> couche logique métier (`src/lib/`/`src/features/`). La Phase 7 (espace
+> admin) reste volontairement non construite - aucun besoin métier confirmé
+> à ce jour (contrat §61 : « ne pas construire un back-office massif si le
+> besoin métier n'est pas confirmé »).
 
 ## Stack
 

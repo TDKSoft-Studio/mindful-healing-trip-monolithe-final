@@ -60,13 +60,21 @@ jobs:
 
       # Fail fast on the most severe issue class (a committed secret) before
       # spending time on anything else - mirrors `security:gitleaks` being
-      # the first step of `task ci` (see Taskfile.yml). Uses the action
-      # instead of a local binary: CI runners are ephemeral, so there's no
-      # "install once" benefit to a prerequisite check like `task setup`'s.
+      # the first step of `task ci` (see Taskfile.yml). Installs the OSS
+      # gitleaks CLI directly rather than gitleaks/gitleaks-action@v2: the
+      # action now gates organization repos behind a paid license
+      # (GITLEAKS_LICENSE secret) - the underlying CLI itself remains free,
+      # so downloading it from GitHub Releases keeps this a real, working
+      # secret scan without buying a license just to run our own tooling.
+      - name: Install gitleaks
+        run: |
+          curl -fsSL -o /tmp/gitleaks.tar.gz \
+            https://github.com/gitleaks/gitleaks/releases/download/v8.24.3/gitleaks_8.24.3_linux_x64.tar.gz
+          tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
+          sudo mv /tmp/gitleaks /usr/local/bin/gitleaks
+
       - name: Gitleaks (secret scan)
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITLEAKS_CONFIG: .gitleaks.toml
+        run: gitleaks detect --source . --config .gitleaks.toml --no-banner
 
       - name: Format check
         run: pnpm format:check

@@ -81,7 +81,9 @@ tasks:
   # like lint/typecheck - not a third-party advisory that can appear with
   # no change on our side. Requires gitleaks installed locally (checked in
   # `task setup`, see https://github.com/gitleaks/gitleaks#installing);
-  # CI installs it itself via gitleaks/gitleaks-action.
+  # CI installs the binary itself from GitHub Releases (see ci.yml) - not
+  # via gitleaks/gitleaks-action, which now requires a paid license for
+  # organization repos.
   "security:gitleaks":
     desc: "Scan the repository for committed secrets (contract §36)."
     cmd: gitleaks detect --source . --config .gitleaks.toml --no-banner

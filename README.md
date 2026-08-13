@@ -31,7 +31,7 @@ des lieux initial du repository.
 - [Docker](https://docs.docker.com/get-docker/) + Docker Compose
 - [Task](https://taskfile.dev/installation/)
 - [Node.js](https://nodejs.org) 22 LTS et [pnpm](https://pnpm.io/installation) (nécessaires uniquement pour les workflows exécutés hors conteneur, ex. `task lint` en local)
-- [gitleaks](https://github.com/gitleaks/gitleaks#installing) (scan de secrets, exécuté par `task ci`/`task setup` vérifie sa présence - la CI GitHub Actions l'installe elle-même via `gitleaks/gitleaks-action`)
+- [gitleaks](https://github.com/gitleaks/gitleaks#installing) (scan de secrets, exécuté par `task ci`/`task setup` vérifie sa présence - la CI GitHub Actions télécharge le binaire elle-même depuis les GitHub Releases du projet)
 
 ## Démarrage rapide
 

@@ -171,8 +171,12 @@ strict-origin-when-cross-origin`, `Permissions-Policy` (caméra/micro/
   `compose.yaml`/`.env.example` (jamais utilisé en production - voir
   ci-dessus). En local, `task setup` vérifie la présence du binaire
   `gitleaks` (à installer manuellement, voir le README) ; la CI GitHub
-  Actions l'installe elle-même via `gitleaks/gitleaks-action@v2`, donc
-  aucun prérequis supplémentaire côté runner.
+  Actions télécharge le binaire directement depuis les GitHub Releases du
+  projet (voir `.github/workflows/ci.yml`), donc aucun prérequis
+  supplémentaire côté runner. **Pas** via `gitleaks/gitleaks-action@v2` :
+  cette action exige désormais une licence payante (`GITLEAKS_LICENSE`)
+  pour les dépôts d'organisation - le CLI open-source sous-jacent, lui,
+  reste gratuit, d'où le téléchargement direct plutôt que l'action.
 
 ## Stratégie SEO
 

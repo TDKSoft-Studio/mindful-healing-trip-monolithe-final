@@ -6,11 +6,12 @@ pour le contrat d'ingénierie de référence du projet, et
 [`docs/ENGINEERING_DISCOVERY.md`](docs/ENGINEERING_DISCOVERY.md) pour l'état
 des lieux initial du repository.
 
-> **Statut** : Phase 5 (Formulaire de contact). Le site public est navigable
-> de bout en bout : accueil, voyages, destinations, à propos, contact,
-> mentions légales. Le formulaire de contact est fonctionnel (validation
-> client + serveur, anti-spam honeypot + rate limiting, stockage en base,
-> notifications email).
+> **Statut** : Phase 6 (SEO / Accessibilité / Performance). Le site public
+> est navigable de bout en bout avec un formulaire de contact fonctionnel
+> (Phase 5). Phase 6 ajoute sitemap.xml, robots.txt, données structurées
+> Schema.org, Open Graph/Twitter cards et canonical sur toutes les pages,
+> et étend le scan d'accessibilité automatisé (axe) à l'ensemble des pages
+> publiques.
 
 ## Stack
 

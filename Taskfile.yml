@@ -5,6 +5,8 @@ version: "3"
 
 vars:
   COMPOSE: docker compose
+  PLAYWRIGHT_CACHE: ~/.cache/ms-playwright
+  COVERAGE_THRESHOLD: 80
 
 tasks:
   default:
@@ -27,6 +29,8 @@ tasks:
       # runs, so the `postinstall` hook (`prisma generate`) can resolve it
       # either way - see prisma.config.ts.
       - pnpm install
+      - task: gitleaks:install
+      - task: playwright:install
       - 'echo "==> Starting postgres + mailpit"'
       - "{{.COMPOSE}} up -d postgres mailpit"
       - task: db:wait
@@ -52,75 +56,275 @@ tasks:
     desc: "Start the local dev environment (app + postgres + mailpit)."
     cmd: "{{.COMPOSE}} up"
 
+  # --- Gitleaks ----------------------------------------------------------
+  gitleaks:install:
+    desc: "Install gitleaks for secrets detection."
+    cmds:
+      - |
+        if ! command -v gitleaks >/dev/null 2>&1; then
+          echo "==> Installing gitleaks..."
+          curl -sL https://github.com/gitleaks/gitleaks/releases/latest/download/gitleaks_$(uname -s)_$(uname -m).tar.gz | tar xz
+          sudo mv gitleaks /usr/local/bin/
+        else
+          echo "gitleaks already installed: $(gitleaks version)"
+        fi
+    status:
+      - command -v gitleaks >/dev/null 2>&1
+
+  gitleaks:check:
+    desc: "Scan repository for secrets and sensitive data."
+    cmds:
+      - gitleaks detect --source . --verbose
+    sources:
+      - .git/**
+    status:
+      - gitleaks detect --source . --no-banner 2>&1 | grep -q "no leaks found"
+
+  gitleaks:report:
+    desc: "Generate gitleaks report in JSON format."
+    cmds:
+      - gitleaks detect --source . --report-path gitleaks-report.json --report-format json
+      - 'echo "Report generated: gitleaks-report.json"'
+
+  # --- Playwright ---------------------------------------------------------
+  playwright:install:
+    desc: "Install Playwright browsers with system dependencies."
+    cmds:
+      - pnpm exec playwright install --with-deps chromium
+    status:
+      - test -d {{.PLAYWRIGHT_CACHE}}/chromium-*
+
+  playwright:install:deps:
+    desc: "Install only Playwright system dependencies (for CI)."
+    cmds:
+      - pnpm exec playwright install-deps chromium
+    status:
+      - test -d {{.PLAYWRIGHT_CACHE}}/chromium-*
+
   # --- Build --------------------------------------------------------------
   build:
     desc: "Production build of the Next.js app."
+    deps:
+      - deps:install
     cmd: pnpm build
+
+  # --- Dependencies -------------------------------------------------------
+  deps:install:
+    desc: "Install Node.js dependencies with frozen lockfile."
+    cmds:
+      - pnpm install --frozen-lockfile
+    sources:
+      - package.json
+      - pnpm-lock.yaml
+    generates:
+      - node_modules/**/*
 
   # --- Quality ------------------------------------------------------------
   lint:
     desc: "Lint the codebase."
+    deps:
+      - deps:install
     cmd: pnpm lint
+
+  lint:fix:
+    desc: "Lint and fix issues automatically."
+    deps:
+      - deps:install
+    cmd: pnpm lint:fix
 
   typecheck:
     desc: "TypeScript strict type checking (no emit)."
+    deps:
+      - deps:install
     cmd: pnpm typecheck
 
   format:
     desc: "Format the codebase with Prettier."
+    deps:
+      - deps:install
     cmd: pnpm format
 
   "format:check":
     desc: "Check formatting without writing changes."
+    deps:
+      - deps:install
     cmd: pnpm format:check
 
-  # --- Tests ----------------------------------------------------------------
+  # --- Tests --------------------------------------------------------------
   test:
-    desc: "Run unit + integration tests (Vitest). Integration tests need a migrated, seeded DB."
+    desc: "Run unit + integration tests (Vitest)."
+    deps:
+      - deps:install
     cmd: pnpm test
+
+  "test:coverage":
+    desc: "Run tests with coverage report."
+    deps:
+      - deps:install
+    cmds:
+      - pnpm test:coverage
+      - task: "coverage:check"
+      - task: "coverage:report"
+
+  "test:coverage:html":
+    desc: "Run tests with coverage and open HTML report."
+    deps:
+      - deps:install
+    cmds:
+      - pnpm test:coverage
+      - task: "coverage:check"
+      - task: "coverage:open"
 
   "test:e2e":
     desc: "Run end-to-end tests (Playwright). Builds first."
-    # Unlike ci.yml, this doesn't install Playwright browsers: CI runners
-    # are ephemeral and need `playwright install --with-deps chromium` on
-    # every run, a dev machine only needs `pnpm exec playwright install`
-    # once (see README "Tests"). Both use the same `pnpm test:e2e` command.
-    cmds:
-      - pnpm build
-      - pnpm test:e2e
+    deps:
+      - deps:install
+      - playwright:install
+      - build
+    cmd: pnpm test:e2e
 
-  # --- Database ---------------------------------------------------------
+  "test:e2e:headed":
+    desc: "Run E2E tests with headed browser (for debugging)."
+    deps:
+      - deps:install
+      - playwright:install
+      - build
+    cmd: pnpm test:e2e --headed
+
+  "test:e2e:debug":
+    desc: "Run E2E tests in debug mode."
+    deps:
+      - deps:install
+      - playwright:install
+      - build
+    cmd: pnpm test:e2e --debug
+
+  "test:e2e:coverage":
+    desc: "Run E2E tests with coverage (requires NYC/Istanbul)."
+    deps:
+      - deps:install
+      - playwright:install
+      - build
+    cmd: pnpm test:e2e --coverage
+
+  # --- Coverage ----------------------------------------------------------
+  coverage:check:
+    desc: "Check if coverage meets the threshold."
+    internal: true
+    cmds:
+      - |
+        COVERAGE=$(cat coverage/coverage-summary.json | jq '.total.statements.pct')
+        echo "Current coverage: ${COVERAGE}%"
+        echo "Threshold: {{.COVERAGE_THRESHOLD}}%"
+        if (( $(echo "$COVERAGE < {{.COVERAGE_THRESHOLD}}" | bc -l) )); then
+          echo "❌ Coverage ${COVERAGE}% is below threshold {{.COVERAGE_THRESHOLD}}%"
+          exit 1
+        else
+          echo "✅ Coverage ${COVERAGE}% meets the threshold"
+        fi
+
+  coverage:report:
+    desc: "Generate coverage report summary."
+    internal: true
+    cmds:
+      - pnpm coverage:report
+      - 'echo "Coverage report generated in coverage/lcov-report/index.html"'
+      - 'echo "Summary:"'
+      - cat coverage/coverage-summary.json | jq '.total'
+
+  coverage:open:
+    desc: "Open coverage report in browser."
+    internal: true
+    cmds:
+      - pnpm coverage:open
+      - 'echo "Opening coverage report in browser..."'
+
+  coverage:badge:
+    desc: "Generate coverage badge (for README)."
+    deps:
+      - test:coverage
+    cmds:
+      - pnpm coverage:badge
+      - 'echo "Coverage badge generated: coverage/badge.svg"'
+
+  # --- Database -----------------------------------------------------------
   "db:migrate":
     desc: "Create/apply a dev migration."
+    deps:
+      - deps:install
     cmd: pnpm db:migrate
+
+  "db:migrate:deploy":
+    desc: "Apply migrations in production/CI mode."
+    deps:
+      - deps:install
+    cmd: pnpm db:migrate:deploy
 
   "db:seed":
     desc: "Seed the development database."
+    deps:
+      - deps:install
     cmd: pnpm db:seed
 
   "db:reset":
     desc: "Reset the database (drop, recreate, migrate, seed)."
+    deps:
+      - deps:install
     cmd: pnpm db:reset
 
-  # --- Local CI -------------------------------------------------------------
+  "db:studio":
+    desc: "Open Prisma Studio to browse the database."
+    deps:
+      - deps:install
+    cmd: pnpm db:studio
+
+  # --- Local CI -----------------------------------------------------------
   # Keep this task's step order identical to .github/workflows/ci.yml
   # (contract §31-32) - a step added/removed here must be mirrored there.
-  # Migrations + seed run before `test` because the integration tests
-  # (tests/integration/) query real seeded Trip/Destination rows.
   ci:
     desc: "Run the full local CI pipeline - mirrors .github/workflows/ci.yml."
+    deps:
+      - deps:install
+      - playwright:install
+      - gitleaks:install
     cmds:
+      - task: gitleaks:check
       - task: "format:check"
       - task: lint
       - task: typecheck
       - cmd: pnpm db:migrate:deploy
       - cmd: pnpm db:seed
-      - task: test
-      - task: "test:e2e" # builds internally, then runs Playwright
+      - task: test:coverage
+      - task: "test:e2e"
+      - 'echo "✅ All CI checks passed!"'
+      - 'echo "📊 Coverage threshold: {{.COVERAGE_THRESHOLD}}%"'
 
-  # --- Docker -----------------------------------------------------------
+  # --- Quick checks -------------------------------------------------------
+  quick:
+    desc: "Fast checks for pre-commit (format, lint, typecheck)."
+    deps:
+      - deps:install
+    cmds:
+      - task: "format:check"
+      - task: lint
+      - task: typecheck
+
+  security:
+    desc: "Run all security checks (gitleaks, dependency audit, etc.)."
+    deps:
+      - deps:install
+      - gitleaks:install
+    cmds:
+      - task: gitleaks:check
+      - pnpm audit --prod
+      - pnpm audit --dev
+      - 'echo "✅ Security checks passed!"'
+
+  # --- Docker ------------------------------------------------------------
   "docker:build":
     desc: "Build the production Docker image."
+    deps:
+      - deps:install
     cmd: docker build -t mindful-healing-trips .
 
   "docker:up":
@@ -131,7 +335,29 @@ tasks:
     desc: "Stop the Docker Compose stack."
     cmd: "{{.COMPOSE}} down"
 
+  "docker:logs":
+    desc: "View logs from the Docker Compose stack."
+    cmd: "{{.COMPOSE}} logs -f"
+
+  "docker:clean":
+    desc: "Stop and remove all containers, volumes, and images."
+    cmd: "{{.COMPOSE}} down -v --rmi local"
+
   # --- Observability ------------------------------------------------------
   health:
     desc: "Check the running app's health endpoint."
     cmd: "curl -fsS http://localhost:3000/api/health && echo"
+
+  # --- Clean -------------------------------------------------------------
+  clean:
+    desc: "Clean all generated artifacts and dependencies."
+    cmds:
+      - rm -rf node_modules
+      - rm -rf .next
+      - rm -rf coverage
+      - rm -rf test-results
+      - rm -rf playwright-report
+      - rm -rf dist
+      - rm -rf .nyc_output
+      - rm -rf gitleaks-report.json
+      - 'echo "🧹 Clean complete"'

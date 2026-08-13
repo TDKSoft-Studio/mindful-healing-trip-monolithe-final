@@ -55,3 +55,6 @@ next-env.d.ts
 /.claude/skills/
 /.windsurf/
 skills-lock.json
+
+# Other
+.task/*

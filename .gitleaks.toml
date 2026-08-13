@@ -1,0 +1,23 @@
+title = "Mindful Healing Trips - gitleaks config"
+
+# Extends gitleaks' default ruleset (contract §36 "pas de secrets dans
+# Git") rather than replacing it - no reason to narrow detection below
+# the maintained defaults.
+[extend]
+useDefault = true
+
+# Documented, non-sensitive local development credentials (contract
+# §23-24: "les credentials locaux doivent être des valeurs de
+# développement et ne doivent jamais être utilisés en production").
+# `devpassword` doesn't currently match any default rule (verified via a
+# real scan), but is allowlisted explicitly anyway - self-documenting
+# intent, and a guard if a future ruleset update ever does flag it.
+[allowlist]
+description = "Known non-sensitive local dev credentials, never used in production"
+regexes = ['''devpassword''']
+paths = [
+  '''compose\.yaml''',
+  '''\.env\.example''',
+  '''ARCHITECTURE\.md''',
+  '''README\.md''',
+]

@@ -158,6 +158,25 @@ strict-origin-when-cross-origin`, `Permissions-Policy` (caméra/micro/
   volontairement absent de `task ci` (contrat §33 : un CI ne doit pas
   devenir fragile à cause d'une alerte transitive sans rapport avec le
   diff en cours).
+- **Scan de secrets (gitleaks, `.gitleaks.toml`)** : contrairement à
+  `pnpm audit`, `task security:gitleaks` **fait** partie de `task ci`
+  (première étape, avant même `format:check`) - un résultat gitleaks porte
+  sur le contenu de _nos propres_ commits, déterministe à chaque exécution
+  comme le lint/typecheck, pas sur une base d'avis tiers qui peut varier
+  sans changement de notre côté (c'est cette dernière propriété qui exclut
+  `pnpm audit` de `task ci`, pas la nature "sécurité" du contrôle).
+  `.gitleaks.toml` étend le ruleset par défaut de gitleaks
+  (`[extend] useDefault = true`) et allowliste explicitement
+  `devpassword`, l'identifiant de développement local documenté dans
+  `compose.yaml`/`.env.example` (jamais utilisé en production - voir
+  ci-dessus). En local, `task setup` vérifie la présence du binaire
+  `gitleaks` (à installer manuellement, voir le README) ; la CI GitHub
+  Actions télécharge le binaire directement depuis les GitHub Releases du
+  projet (voir `.github/workflows/ci.yml`), donc aucun prérequis
+  supplémentaire côté runner. **Pas** via `gitleaks/gitleaks-action@v2` :
+  cette action exige désormais une licence payante (`GITLEAKS_LICENSE`)
+  pour les dépôts d'organisation - le CLI open-source sous-jacent, lui,
+  reste gratuit, d'où le téléchargement direct plutôt que l'action.
 
 ## Stratégie SEO
 

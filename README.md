@@ -31,6 +31,7 @@ des lieux initial du repository.
 - [Docker](https://docs.docker.com/get-docker/) + Docker Compose
 - [Task](https://taskfile.dev/installation/)
 - [Node.js](https://nodejs.org) 22 LTS et [pnpm](https://pnpm.io/installation) (nécessaires uniquement pour les workflows exécutés hors conteneur, ex. `task lint` en local)
+- [gitleaks](https://github.com/gitleaks/gitleaks#installing) (scan de secrets, exécuté par `task ci`/`task setup` vérifie sa présence - la CI GitHub Actions télécharge le binaire elle-même depuis les GitHub Releases du projet)
 
 ## Démarrage rapide
 
@@ -60,11 +61,13 @@ task db:migrate              # nouvelle migration Prisma (dev)
 task db:seed                  # seed de la base de développement
 task db:reset                  # reset complet de la base
 task test:e2e                   # tests end-to-end (Playwright)
+task playwright:install          # installe les navigateurs Playwright (une fois)
 task ci                          # pipeline complète - doit être verte avant toute PR
 task docker:build                  # build de l'image Docker de production
 task docker:up                      # démarre la stack complète via Docker Compose
 task docker:down                     # arrête la stack Docker Compose
 task health                          # vérifie /api/health sur une instance démarrée
+task security:gitleaks               # scan de secrets commités (gitleaks)
 task security:audit                  # vérifie les dépendances (pnpm audit)
 ```
 
@@ -90,9 +93,9 @@ task security:audit                  # vérifie les dépendances (pnpm audit)
 - **End-to-end** (`e2e/`) : parcours utilisateur avec Playwright, couvrant
   desktop et mobile - `task test:e2e` (build une version de production
   d'abord, puis lance le serveur standalone). Nécessite les navigateurs
-  Playwright installés une seule fois : `pnpm exec playwright install`
-  (la CI GitHub Actions le fait à chaque run, car ses runners sont
-  éphémères - voir `.github/workflows/ci.yml`).
+  Playwright installés une seule fois : `task playwright:install`
+  (idempotent - la CI GitHub Actions installe les siens à chaque run, car
+  ses runners sont éphémères - voir `.github/workflows/ci.yml`).
 
 ## Design system
 

@@ -31,12 +31,17 @@ adaptée au fur et à mesure des besoins réels plutôt que créée en une fois
 
 ## Flux de données
 
-Phase 1 : aucune donnée métier - le schéma Prisma est volontairement vide
-(connexion vérifiée, zéro modèle). Phase 3 introduira `Trip`, `Destination`
-et l'enum de statut décrits au contrat §9, alimentés par
-`prisma/seed.ts` à partir du contenu confirmé dans
-`docs/ENGINEERING_DISCOVERY.md` (section 9), avec `NEEDS_CONFIRMATION`
-explicite pour toute donnée commerciale non certaine (contrat §10/§68).
+`Trip` et `Destination` (contrat §9) sont en base depuis la Phase 3, avec
+l'enum `TripStatus` répliqué depuis `src/lib/trip-status.ts` (posé en
+Phase 2). Les pages ne doivent jamais interroger Prisma directement -
+elles passent par `src/features/trips/queries.ts` et
+`src/features/destinations/queries.ts`, qui filtrent systématiquement sur
+`published`/`publishedAt` (un brouillon ne doit jamais fuiter côté
+visiteur). `prisma/seed.ts` peuple Paris/Berlin/Reims à partir du contenu
+confirmé dans `docs/ENGINEERING_DISCOVERY.md` (section 9), avec
+`NEEDS_CONFIRMATION` explicite pour toute donnée commerciale non certaine
+(contrat §10/§68) - notamment le statut de Reims et tous les prix, qui
+restent `null`.
 
 ## Base de données
 
@@ -57,6 +62,13 @@ Prisma ORM v7 a changé de modèle de génération et de connexion :
 - Les migrations et le seed (`prisma/seed.ts`, exécuté via `tsx`) sont
   déclenchés explicitement (`task db:migrate`, `task db:seed`) - Prisma v7 ne
   les enchaîne plus automatiquement.
+- **Vitest ne charge pas `.env.local` automatiquement** (contrairement à
+  Next.js et à la CLI Prisma) : `tests/setup-env.ts` le fait explicitement
+  via `setupFiles`. Sans ça, `DATABASE_URL` est `undefined` dans les tests
+  d'intégration, et le driver `pg` d'`@prisma/adapter-pg` échoue de façon
+  trompeuse - la première requête sur le pool peut réussir avant qu'une
+  requête suivante échoue avec `no PostgreSQL user name specified in
+startup packet` (bug réel rencontré et corrigé pendant la Phase 3).
 
 ## Sécurité
 
@@ -155,6 +167,48 @@ not used for text, because they silently fail contrast (verified ~2.7:1,
 see the token comments). `e2e/accessibility.spec.ts` runs an automated
 axe scan (WCAG 2.0/2.1 A/AA) against the homepage on every `task ci` run.
 
+## Content/Data (Phase 3)
+
+`Trip` et `Destination` (contrat §9), plus l'enum `TripStatus` répliqué
+depuis `src/lib/trip-status.ts` (Phase 2), sont maintenant dans
+`prisma/schema.prisma` avec une migration
+(`prisma/migrations/20260813134935_add_trip_destination_models`).
+
+- **Couche repository** : `src/features/trips/queries.ts` et
+  `src/features/destinations/queries.ts` sont le seul endroit qui appelle
+  `prisma.trip`/`prisma.destination` - les pages doivent passer par elles,
+  jamais par le client Prisma directement (contrat §38). Chaque requête
+  filtre sur `published`/`publishedAt` pour qu'un brouillon ne fuite jamais
+  côté visiteur.
+- **Contenu du seed** (`prisma/seed.ts`) entièrement sourcé depuis
+  `docs/ENGINEERING_DISCOVERY.md` section 9 - ce qui est littéralement
+  confirmé sur les flyers officiels, rien d'extrapolé. Notamment : tous les
+  `price` sont `null` (aucun n'a été confirmé), et le statut de Reims est
+  `UPCOMING` avec un commentaire `NEEDS_CONFIRMATION` explicite - son flyer
+  ne montre ni statut de réservation ni prix, contrairement à Paris/Berlin,
+  et le contrat (§11) interdit explicitement d'en déduire un. Les statuts
+  de Paris/Berlin (`COMPLETED`/`CLOSED`) découlent de la règle du contrat
+  sur comment traiter un voyage passé/en clôture par rapport à la date
+  actuelle du projet, pas d'une lecture littérale du flyer (celui de Paris
+  dit littéralement "sold out", mais la date est passée, donc le contrat
+  §11 impose `COMPLETED`).
+- Le seed est idempotent (`upsert` sur `slug`) - `task db:seed` peut
+  tourner autant de fois que nécessaire sans dupliquer de lignes.
+- **Tests d'intégration** (`tests/integration/`) exécutent de vraies
+  requêtes contre un Postgres migré + seedé (contrat §34). `task ci`/
+  `ci.yml` exécutent maintenant `db:migrate:deploy` puis `db:seed` _avant_
+  `test`, pour que ces tests aient de vraies données à vérifier - les
+  tests unitaires qui ne touchent pas la DB cohabitent dans le même run
+  Vitest.
+- **Bug Vitest trouvé et corrigé** : contrairement à Next.js et à la CLI
+  Prisma, Vitest ne charge pas `.env.local` automatiquement. Sans
+  `tests/setup-env.ts` (branché via `setupFiles`), `DATABASE_URL` était
+  `undefined` dans les tests, et le pool `pg` d'`@prisma/adapter-pg`
+  échouait de façon trompeuse - la première requête sur une connexion
+  fraîche pouvait réussir avant qu'une suivante échoue avec `no PostgreSQL
+user name specified in startup packet`. Bug réel, visible uniquement en
+  exécutant vraiment les tests d'intégration, pas via lint/typecheck.
+
 ## CMS
 
 Aucun CMS en Phase 1-3. Le contenu métier (voyages, destinations) vit en
@@ -162,12 +216,16 @@ base PostgreSQL via Prisma, séparé du code (contrat §38), ce qui permet
 d'introduire un CMS plus tard sans réécrire l'interface si le besoin se
 confirme. Aucun CMS n'est construit préventivement (contrat §39).
 
-## Limites connues (Phase 1)
+## Limites connues
 
-- Aucun modèle métier (`Trip`, `Destination`) - Phase 3.
-- Aucune page publique réelle - homepage actuelle est un placeholder de
-  fondation (Phase 4).
-- Aucun composant de design system (Button, Card, etc.) - Phase 2.
+- Aucune page publique réelle ne consomme encore `Trip`/`Destination` -
+  homepage actuelle est un placeholder de fondation (Phase 4 : `/voyages`,
+  `/voyages/[slug]`, `/destinations`, `/destinations/[slug]`).
+- Statut de Reims et tous les prix `NEEDS_CONFIRMATION` - voir
+  `prisma/seed.ts` et `docs/ENGINEERING_DISCOVERY.md` section 9.
+- `TripCard`, `DestinationCard`, `ImageGallery`, `ContactForm`, `BookingCTA`
+  toujours pas construits - Phase 4/5, maintenant que les données réelles
+  existent pour les dimensionner correctement.
 - Le build/run Docker n'a pas pu être exécuté dans l'environnement où ce
   code a été écrit (démon Docker indisponible dans ce bac à sable) ; la
   logique a été validée indirectement (`docker compose config`, et

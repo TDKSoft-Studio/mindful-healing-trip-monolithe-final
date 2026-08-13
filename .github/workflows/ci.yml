@@ -16,6 +16,8 @@ jobs:
       DATABASE_URL: postgresql://mindfultrip:devpassword@localhost:5432/mindfultrip?schema=public
       NEXT_PUBLIC_SITE_URL: http://localhost:3000
       CONTACT_EMAIL: info-healingtrip@nextgen-care.org
+      SMTP_HOST: localhost
+      SMTP_PORT: "1025"
 
     services:
       postgres:
@@ -31,6 +33,14 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+
+      # SMTP test server for the contact form's e2e test (contract §29) -
+      # mirrors compose.yaml's mailpit service.
+      mailpit:
+        image: axllent/mailpit:latest
+        ports:
+          - 1025:1025
+          - 8025:8025
 
     steps:
       - name: Checkout

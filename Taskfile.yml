@@ -20,6 +20,12 @@ tasks:
       - 'command -v pnpm >/dev/null || { echo "pnpm is required (see pnpm.io)"; exit 1; }'
       - "test -f .env.local || cp .env.example .env.local"
       - 'echo "==> Installing dependencies"'
+      # No --frozen-lockfile here (unlike ci.yml's "Install dependencies"
+      # step): a dev bootstrap is allowed to update the lockfile against a
+      # newly-edited package.json, CI must not (reproducibility). Both
+      # environments create/have .env.local's DATABASE_URL before this
+      # runs, so the `postinstall` hook (`prisma generate`) can resolve it
+      # either way - see prisma.config.ts.
       - pnpm install
       - 'echo "==> Starting postgres + mailpit"'
       - "{{.COMPOSE}} up -d postgres mailpit"
@@ -75,6 +81,10 @@ tasks:
 
   "test:e2e":
     desc: "Run end-to-end tests (Playwright). Builds first."
+    # Unlike ci.yml, this doesn't install Playwright browsers: CI runners
+    # are ephemeral and need `playwright install --with-deps chromium` on
+    # every run, a dev machine only needs `pnpm exec playwright install`
+    # once (see README "Tests"). Both use the same `pnpm test:e2e` command.
     cmds:
       - pnpm build
       - pnpm test:e2e

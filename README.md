@@ -6,9 +6,11 @@ pour le contrat d'ingénierie de référence du projet, et
 [`docs/ENGINEERING_DISCOVERY.md`](docs/ENGINEERING_DISCOVERY.md) pour l'état
 des lieux initial du repository.
 
-> **Statut** : Phase 4 (Public Website). Le site public est navigable de
-> bout en bout : accueil, voyages, destinations, à propos, contact, mentions
-> légales. Le formulaire de contact fonctionnel arrive en Phase 5.
+> **Statut** : Phase 5 (Formulaire de contact). Le site public est navigable
+> de bout en bout : accueil, voyages, destinations, à propos, contact,
+> mentions légales. Le formulaire de contact est fonctionnel (validation
+> client + serveur, anti-spam honeypot + rate limiting, stockage en base,
+> notifications email).
 
 ## Stack
 
@@ -71,16 +73,18 @@ task health                          # vérifie /api/health sur une instance dé
   dehors de `task ci`, qui le fait automatiquement).
 - **End-to-end** (`e2e/`) : parcours utilisateur avec Playwright, couvrant
   desktop et mobile - `task test:e2e` (build une version de production
-  d'abord, puis lance le serveur standalone).
+  d'abord, puis lance le serveur standalone). Nécessite les navigateurs
+  Playwright installés une seule fois : `pnpm exec playwright install`
+  (la CI GitHub Actions le fait à chaque run, car ses runners sont
+  éphémères - voir `.github/workflows/ci.yml`).
 
 ## Design system
 
 Composants réutilisables sous `src/components/` (`ui/`, `layout/`,
 `navigation/`, `forms/`, `travel/`, `destinations/`, `shared/`), tokens de
 marque dans `src/app/globals.css`, configuration centrale (nav, contact,
-réseaux) dans `src/lib/site-config.ts`. Détail des choix et de ce qui reste
-volontairement non construit (ContactForm...) dans
-[`ARCHITECTURE.md`](ARCHITECTURE.md).
+réseaux) dans `src/lib/site-config.ts`. Détail des choix et de l'architecture
+du formulaire de contact dans [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 ## Pages
 
@@ -91,7 +95,7 @@ volontairement non construit (ContactForm...) dans
 /destinations                  toutes les destinations
 /destinations/[slug]           fiche destination + ses voyages
 /a-propos                      positionnement
-/contact                       canaux de contact directs (formulaire en Phase 5)
+/contact                       canaux de contact directs + formulaire
 /mentions-legales              placeholder - contenu à confirmer
 /politique-confidentialite     placeholder - contenu à confirmer
 ```

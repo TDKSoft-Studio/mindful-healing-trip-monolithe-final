@@ -1,8 +1,8 @@
 import { expect, test } from "@playwright/test";
 
 // Contract §34 "Parcours visiteur": Accueil -> Nos voyages -> Voyage ->
-// Contact. (The "-> soumission" leg is Phase 5, once a real contact form
-// exists.)
+// Contact. (The "-> soumission" leg lives in contact-form.spec.ts, which
+// covers the form itself in more depth.)
 
 test("visitor can go from the homepage to a trip and on to contact", async ({
   page,

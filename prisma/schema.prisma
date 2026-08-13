@@ -103,6 +103,37 @@ model Trip {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  contactRequests ContactRequest[]
+
   @@index([destinationId])
   @@index([status])
+}
+
+/// Contact form submissions (contract §17/§59). Stored so a request isn't
+/// lost if the confirmation email fails to send, and so Phase 7's admin
+/// can eventually review them - not just emailed and forgotten.
+model ContactRequest {
+  id        String  @id @default(cuid())
+  firstName String
+  lastName  String
+  email     String
+  /// Optional - the contract lists it as a form field but forcing a phone
+  /// number for a simple question is unnecessary friction (contract §44:
+  /// clarté > décoration doesn't excuse avoidable friction either).
+  phone     String?
+
+  tripId            String?
+  trip              Trip?   @relation(fields: [tripId], references: [id], onDelete: SetNull)
+  participantsCount Int?
+
+  message String @db.Text
+
+  /// Timestamp the visitor gave consent (contract §17) - its presence
+  /// *is* the record that consent was obtained, not a boolean.
+  consentAt DateTime
+
+  createdAt DateTime @default(now())
+
+  @@index([tripId])
+  @@index([createdAt])
 }

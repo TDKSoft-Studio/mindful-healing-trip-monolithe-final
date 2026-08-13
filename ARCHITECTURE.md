@@ -94,8 +94,14 @@ build` - c'est le comportement documenté et attendu de la sortie
   information sur les dépendances internes (contrat §48).
 - Le conteneur de production tourne en utilisateur non-root (`nextjs`,
   uid 1001) - voir `Dockerfile`.
-- La validation Zod côté serveur (Phase 5, formulaire de contact) ne fera
-  jamais confiance à la seule validation client (contrat §17/§36).
+- La validation Zod côté serveur du formulaire de contact
+  (`src/features/contact/schema.ts`) ne fait jamais confiance à la seule
+  validation client (contrat §17/§36) : le Server Action revalide tout,
+  même si le navigateur a déjà laissé passer la saisie.
+- Identifiants SMTP jamais exposés au navigateur : `SmtpEmailService`
+  n'existe que côté serveur (`"use server"` en amont dans la chaîne
+  d'appel), lit ses identifiants depuis les variables d'environnement
+  (contrat §17).
 
 ## Stratégie SEO
 
@@ -158,10 +164,12 @@ Components built so far (contract §22), under `src/components/`:
 - `forms/`: `FormField` (label + input/textarea + error, accessible).
 
 **Deliberately not built yet**: `TripCard`, `DestinationCard`,
-`ImageGallery`, `ContactForm`, `BookingCTA`, `Modal`. These need real
+`ImageGallery`, `ContactForm`, `BookingCTA`, `Modal`. These needed real
 `Trip`/`Destination` shapes (Phase 3) or a real form flow (Phase 5) to be
-meaningful - building them now would mean guessing a data shape and
-reworking it later (contract §66: no abstraction before a real need).
+meaningful - building them then would have meant guessing a data shape and
+reworking it later (contract §66: no abstraction before a real need). All
+have since been built as their respective phases landed; `Modal` remains
+unbuilt as no page has needed one yet.
 `StatusBadge` is the one exception: its input (`TripStatus`) is fully
 specified by the contract itself (§9), so `src/lib/trip-status.ts` defines
 it now, ahead of the Prisma model, with unit tests for the status-display
@@ -249,9 +257,8 @@ données via les repositories Phase 3, jamais de contenu codé en dur.
   qui n'a jamais été ouvert. Bug réel trouvé en relisant visuellement la
   page Reims (le seul voyage `UPCOMING` seedé), pas détectable par
   lint/typecheck/tests avant l'ajout du test de régression correspondant.
-- **`/contact`** n'affiche que les canaux de contact directs
-  (email/WhatsApp) - pas de `<form>` non fonctionnel : le vrai formulaire
-  (validation, anti-spam, envoi d'email) est Phase 5.
+- **`/contact`** affiche les canaux de contact directs (email/WhatsApp) et
+  le formulaire fonctionnel (Phase 5, voir section dédiée ci-dessous).
 - **`/mentions-legales` et `/politique-confidentialite`** sont des
   placeholders `TODO_CONTENT_CONFIRMATION` explicites (contrat §37) -
   aucun texte juridique n'a été fourni, donc aucun n'est inventé ; `robots:
@@ -270,6 +277,52 @@ données via les repositories Phase 3, jamais de contenu codé en dur.
   automatisé (`e2e/accessibility.spec.ts`) une fois étendu à ces pages,
   corrigé en repassant en `text-brand-brown` (opacité pleine).
 
+## Formulaire de contact (Phase 5)
+
+Contrat §17/§59. `src/features/contact/` regroupe toute la logique métier :
+
+- **`schema.ts`** : `contactFormSchema` (Zod) valide prénom/nom/email/
+  téléphone (optionnel)/voyage concerné (optionnel)/nombre de participants
+  (optionnel)/message/consentement - source de vérité serveur, indépendante
+  de ce que le navigateur a déjà vérifié. Le champ `website` est un
+  honeypot anti-spam : délibérément laissé structurellement valide
+  (`z.string().max(200).optional()`, pas `.max(0)`) pour qu'un bot qui le
+  remplit obtienne un faux succès silencieux au lieu d'une erreur de
+  validation qui lui indiquerait qu'il a été repéré -
+  `isHoneypotTriggered()` fait la détection séparément, après le parsing.
+- **`rate-limit.ts`** : fenêtre glissante en mémoire (5 soumissions / 10
+  min / identifiant), documentée comme best-effort (par processus, ne
+  survit pas à un redéploiement, pas de partage entre instances) - pas un
+  Redis, mais suffisant pour le volume attendu de ce site.
+- **`mutations.ts`** : `createContactRequest()` isole l'écriture Prisma
+  pour rester testable en intégration sans dépendre de `next/headers`
+  (portée de requête que `submitContactRequest` seul possède).
+- **`actions.ts`** : `submitContactRequest`, le Server Action (`"use
+server"`) branché sur `useActionState` côté client. Ordre : validation
+  Zod → honeypot (faux succès silencieux) → rate limiting par IP → lookup
+  du voyage concerné (si `tripSlug` fourni) → stockage `ContactRequest` →
+  notifications email (best-effort, ne fait jamais échouer la soumission
+  déjà stockée).
+
+`src/lib/email/` : `EmailService` est une interface (`send()`) avec une
+implémentation SMTP (`SmtpEmailService`, nodemailer) - remplaçable par un
+autre fournisseur sans toucher `actions.ts`. Fonctionne avec Mailpit en
+local (`compose.yaml`) et n'importe quel SMTP réel en production, via les
+variables d'environnement `SMTP_*`/`CONTACT_EMAIL` (jamais de secret
+exposé au navigateur, contrat §17).
+
+`ContactRequest` (Prisma) stocke chaque soumission indépendamment du succès
+de l'envoi d'email (contrat §59 "stockage si nécessaire") - une panne SMTP
+ne perd jamais une demande de contact déjà reçue.
+
+`ContactForm` (`src/components/forms/contact-form.tsx`) est un composant
+client : `useActionState` pour l'état pending/erreurs/succès, formulaire
+qui se dégrade proprement sans JS (le `<form action={...}>` poste toujours
+vers le Server Action), erreurs de champ accessibles (`role="alert"`,
+`aria-describedby`), pré-remplissage du voyage concerné depuis `?voyage=`
+(utilisé par le lien de repli de `BookingCTA` pour un voyage réservable
+sans URL de réservation encore fournie).
+
 ## CMS
 
 Aucun CMS en Phase 1-3. Le contenu métier (voyages, destinations) vit en
@@ -281,9 +334,10 @@ confirme. Aucun CMS n'est construit préventivement (contrat §39).
 
 - Statut de Reims et tous les prix `NEEDS_CONFIRMATION` - voir
   `prisma/seed.ts` et `docs/ENGINEERING_DISCOVERY.md` section 9.
-- `ContactForm` toujours pas construit - Phase 5, une fois la validation/
-  l'anti-spam/l'envoi d'email définis. `/contact` n'affiche pour l'instant
-  que les canaux directs (email/WhatsApp).
+- Rate limiting du formulaire de contact en mémoire par processus
+  (`src/features/contact/rate-limit.ts`) - se réinitialise à chaque
+  redéploiement et ne partage pas d'état entre plusieurs instances ; à
+  remplacer par un store partagé (Redis) si le volume le justifie un jour.
 - `/mentions-legales` et `/politique-confidentialite` sont des placeholders
   explicites - textes juridiques réels non fournis (contrat §37).
 - Aucune vraie photographie (hero, voyages, destinations) - tout est

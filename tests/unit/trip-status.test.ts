@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  getBookingUnavailableMessage,
   getTripStatusLabel,
   isBookable,
   TRIP_STATUSES,
@@ -36,5 +37,18 @@ describe("isBookable", () => {
     expect(isBookable("SOLD_OUT")).toBe(false);
     expect(isBookable("DRAFT")).toBe(false);
     expect(isBookable("UPCOMING")).toBe(false);
+  });
+});
+
+describe("getBookingUnavailableMessage", () => {
+  it("distinguishes 'not yet open' from 'no longer open'", () => {
+    // Regression: a single "no longer open" message for every non-bookable
+    // status was factually wrong for UPCOMING trips, which were never open
+    // to begin with - caught by visually rendering the Reims trip page.
+    expect(getBookingUnavailableMessage("UPCOMING")).toMatch(/pas encore/);
+    expect(getBookingUnavailableMessage("CLOSED")).toMatch(/clôturées/);
+    expect(getBookingUnavailableMessage("COMPLETED")).toMatch(/terminé/i);
+    expect(getBookingUnavailableMessage("SOLD_OUT")).toMatch(/complet/i);
+    expect(getBookingUnavailableMessage("CANCELLED")).toMatch(/annulé/i);
   });
 });

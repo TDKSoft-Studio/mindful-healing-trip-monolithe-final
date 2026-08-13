@@ -5,8 +5,11 @@ import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { Container } from "@/components/ui/container";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { ImageGallery } from "@/components/shared/image-gallery";
+import { JsonLd } from "@/components/shared/json-ld";
 import { TripCard } from "@/components/travel/trip-card";
 import { getPublishedDestinationBySlug } from "@/features/destinations/queries";
+import { destinationJsonLd } from "@/lib/seo/json-ld";
+import { buildMetadata } from "@/lib/seo/metadata";
 
 type Params = Promise<{ slug: string }>;
 
@@ -19,10 +22,12 @@ export async function generateMetadata({
   const destination = await getPublishedDestinationBySlug(slug);
   if (!destination) return {};
 
-  return {
+  return buildMetadata({
     title: destination.seoTitle ?? destination.name,
     description: destination.seoDescription ?? destination.shortDescription,
-  };
+    path: `/destinations/${destination.slug}`,
+    image: destination.heroImage ?? undefined,
+  });
 }
 
 export default async function DestinationPage({ params }: { params: Params }) {
@@ -35,6 +40,7 @@ export default async function DestinationPage({ params }: { params: Params }) {
 
   return (
     <main id="main-content" className="flex flex-1 flex-col py-16 sm:py-24">
+      <JsonLd data={destinationJsonLd(destination)} />
       <Container className="flex flex-col gap-10">
         <Breadcrumb
           items={[

@@ -1,15 +1,15 @@
-import type { Metadata } from "next";
-
 import { Container } from "@/components/ui/container";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { DestinationCard } from "@/components/destinations/destination-card";
 import { listPublishedDestinations } from "@/features/destinations/queries";
+import { buildMetadata } from "@/lib/seo/metadata";
 
-export const metadata: Metadata = {
+export const metadata = buildMetadata({
   title: "Destinations",
   description:
     "Découvrez les destinations Mindful Healing Trips : Paris, Berlin, Reims et bien d'autres à venir.",
-};
+  path: "/destinations",
+});
 
 export default async function DestinationsPage() {
   const destinations = await listPublishedDestinations();

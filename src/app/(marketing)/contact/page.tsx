@@ -1,17 +1,17 @@
-import type { Metadata } from "next";
-
 import { ContactForm } from "@/components/forms/contact-form";
 import { Container } from "@/components/ui/container";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { Link } from "@/components/ui/link";
 import { listPublishedTrips } from "@/features/trips/queries";
+import { buildMetadata } from "@/lib/seo/metadata";
 import { siteConfig, socialLinks } from "@/lib/site-config";
 
-export const metadata: Metadata = {
+export const metadata = buildMetadata({
   title: "Contact",
   description:
     "Contactez Mindful Healing Trips par email ou WhatsApp pour toute question sur nos voyages.",
-};
+  path: "/contact",
+});
 
 type SearchParams = Promise<{ voyage?: string }>;
 

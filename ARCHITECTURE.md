@@ -109,9 +109,33 @@ Phase 1 pose les bases : `metadataBase` dérivé de `NEXT_PUBLIC_SITE_URL`,
 `lang="fr"`, titres templatés (`%s | Mindful Healing Trips`). Phase 4 ajoute
 un titre/description par page, y compris dynamiques pour chaque voyage/
 destination (`generateMetadata`, à partir de `seoTitle`/`seoDescription` ou
-d'un repli sur le titre/résumé). Le travail complet (sitemap, robots.txt,
-Open Graph, JSON-LD) reste Phase 6 (contrat §18, §60) - ne pas le considérer
-optionnel.
+d'un repli sur le titre/résumé).
+
+Phase 6 (contrat §18/§60) complète le reste :
+
+- **`src/lib/seo/metadata.ts`** : `buildMetadata()` centralise canonical,
+  Open Graph et Twitter card pour les neuf pages - construits une seule
+  fois plutôt que recopiés à la main à chaque page (contrat §66 : besoin
+  réel et partagé, pas une abstraction gratuite). Image de repli : le logo
+  historique (seul asset photographique réel disponible tant qu'aucune
+  vraie photo n'est fournie, `TODO_ASSET`) - jamais une image générée
+  présentée comme une photo (contrat §45).
+- **`src/lib/seo/json-ld.ts`** + **`src/components/shared/json-ld.tsx`** :
+  données structurées Schema.org - `TravelAgency` (site entier, dans
+  `layout.tsx`), `TouristTrip` (fiche voyage, avec `offers` uniquement si
+  un prix est confirmé - jamais un prix inventé), `TouristDestination`
+  (fiche destination). Uniquement des champs adossés à des données
+  confirmées (contrat §68).
+- **`src/app/sitemap.ts`** : généré depuis les mêmes repositories que les
+  pages (`listPublishedTrips`/`listPublishedDestinations`) - un voyage
+  publié y apparaît automatiquement, un brouillon jamais. Exclut
+  volontairement `/mentions-legales` et `/politique-confidentialite`
+  (`noindex`, contrat §37) : les lister enverrait un signal contradictoire.
+- **`src/app/robots.ts`** : reste permissif (`Allow: /`) partout, y compris
+  sur les pages `noindex` - un `Disallow` empêcherait les moteurs de
+  recherche de même voir la balise `noindex`, ce qui peut paradoxalement
+  laisser l'URL indexée sans extrait si elle est liée ailleurs. C'est la
+  balise `noindex`, pas `robots.txt`, qui porte cette règle.
 
 ## Stratégie images
 

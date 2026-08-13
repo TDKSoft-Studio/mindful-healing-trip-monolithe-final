@@ -1,14 +1,14 @@
-import type { Metadata } from "next";
-
 import { Container } from "@/components/ui/container";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { Button } from "@/components/ui/button";
+import { buildMetadata } from "@/lib/seo/metadata";
 
-export const metadata: Metadata = {
+export const metadata = buildMetadata({
   title: "À propos",
   description:
     "Mindful Healing Trips : voyage, bien-être, découverte et partage - des expériences pensées pour se ressourcer ensemble.",
-};
+  path: "/a-propos",
+});
 
 /**
  * Positioning copy (contract §5/§6) - values and tone only, no invented

@@ -1,12 +1,14 @@
-import type { Metadata } from "next";
-
 import { Container } from "@/components/ui/container";
 import { SectionHeading } from "@/components/ui/section-heading";
+import { buildMetadata } from "@/lib/seo/metadata";
 
-export const metadata: Metadata = {
+export const metadata = buildMetadata({
   title: "Mentions légales",
-  robots: { index: false },
-};
+  description:
+    "Informations légales de Mindful Healing Trips - page en attente de confirmation du contenu officiel.",
+  path: "/mentions-legales",
+  noIndex: true,
+});
 
 /**
  * Placeholder (contract §37): "Ne jamais inventer les textes juridiques

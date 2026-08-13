@@ -74,6 +74,16 @@ tasks:
     desc: "Check formatting without writing changes."
     cmd: pnpm format:check
 
+  # --- Security -------------------------------------------------------------
+  # Not part of `task ci` (contract §33: checks must stay fast and non-
+  # fragile) - a transitive advisory can appear with no code change on our
+  # side, which would make CI flaky for reasons outside this PR's diff.
+  # Run periodically / before a release instead (contract §36 "dépendances
+  # maintenues").
+  "security:audit":
+    desc: "Check dependencies for known vulnerabilities."
+    cmd: pnpm audit
+
   # --- Tests ----------------------------------------------------------------
   test:
     desc: "Run unit + integration tests (Vitest). Integration tests need a migrated, seeded DB."

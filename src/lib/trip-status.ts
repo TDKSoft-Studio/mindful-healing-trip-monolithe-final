@@ -45,3 +45,23 @@ export function getTripStatusLabel(status: TripStatus): string {
 export function isBookable(status: TripStatus): boolean {
   return status === "OPEN" || status === "LIMITED";
 }
+
+const NOT_BOOKABLE_MESSAGES: Partial<Record<TripStatus, string>> = {
+  UPCOMING: "Les réservations ne sont pas encore ouvertes pour ce voyage.",
+  SOLD_OUT: "Ce voyage est complet.",
+  CLOSED: "Les réservations pour ce voyage sont clôturées.",
+  COMPLETED: "Ce voyage est terminé.",
+  CANCELLED: "Ce voyage a été annulé.",
+};
+
+/**
+ * Explains *why* booking isn't available, matching the actual status -
+ * "no longer open" would be wrong for a trip that was never open yet
+ * (UPCOMING). Only meaningful when `!isBookable(status)`.
+ */
+export function getBookingUnavailableMessage(status: TripStatus): string {
+  return (
+    NOT_BOOKABLE_MESSAGES[status] ??
+    "Ce voyage n'est pas ouvert à la réservation."
+  );
+}

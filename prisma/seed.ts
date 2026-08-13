@@ -19,16 +19,20 @@
  *   CLOSED, matching the flyer, not COMPLETED (that would be inventing
  *   an outcome that hasn't happened).
  *
- * Idempotent: every write is an upsert keyed on slug, so re-running this
- * (task db:seed) never duplicates data or fails on a second run.
+ * Dates are stored as UTC midnight for the calendar day (e.g.
+ * "2026-08-15", not a local-time instant) - these are calendar dates a
+ * visitor reads ("du 15 au 22 août"), not precise timestamps, so there's
+ * no timezone conversion to get wrong when formatting them.
+ *
+ * Idempotent AND re-runnable: every upsert's `update` mirrors `create`, so
+ * running this again after editing content below converges the DB to
+ * match - it's not just "insert once and never touch again".
  */
 import { prisma } from "../src/lib/db/prisma";
 
 async function main() {
-  const paris = await prisma.destination.upsert({
-    where: { slug: "paris" },
-    update: {},
-    create: {
+  const destinations = [
+    {
       slug: "paris",
       name: "Paris",
       country: "France",
@@ -38,12 +42,7 @@ async function main() {
         "Paris incarne l'élégance et la culture à la française : musées, promenades le long de la Seine, gastronomie et architecture historique en font une destination intemporelle pour une parenthèse bien-être en pleine ville.",
       published: true,
     },
-  });
-
-  const berlin = await prisma.destination.upsert({
-    where: { slug: "berlin" },
-    update: {},
-    create: {
+    {
       slug: "berlin",
       name: "Berlin",
       country: "Allemagne",
@@ -53,12 +52,7 @@ async function main() {
         "Berlin mêle patrimoine historique, grands espaces verts et attractions familiales. Entre musées, parcs et expériences ludiques, la ville se prête particulièrement bien aux voyages en famille.",
       published: true,
     },
-  });
-
-  const reims = await prisma.destination.upsert({
-    where: { slug: "reims" },
-    update: {},
-    create: {
+    {
       slug: "reims",
       name: "Reims",
       country: "France",
@@ -68,43 +62,47 @@ async function main() {
         "Reims et ses environs offrent un art de vivre à la française : maisons de Champagne historiques, vignobles à perte de vue, patrimoine gothique et moments de détente au rythme de la région.",
       published: true,
     },
-  });
+  ];
 
-  await prisma.trip.upsert({
-    where: { slug: "paris-evasion-bien-etre-elegance" },
-    update: {},
-    create: {
+  const destinationIds: Record<string, string> = {};
+  for (const destination of destinations) {
+    const { slug, ...data } = destination;
+    const row = await prisma.destination.upsert({
+      where: { slug },
+      update: data,
+      create: { slug, ...data },
+    });
+    destinationIds[slug] = row.id;
+  }
+
+  const trips = [
+    {
       slug: "paris-evasion-bien-etre-elegance",
       title: "Évasion, Bien-être & Élégance",
       shortDescription: "Journée bien-être et culture à Paris",
       description:
         "Une journée organisée à Paris, en bus VIP, pour une parenthèse bien-être et culturelle au départ d'Angleur.",
-      destinationId: paris.id,
-      startDate: new Date("2026-07-31T06:30:00+02:00"),
-      endDate: new Date("2026-07-31T23:00:00+02:00"),
+      destinationSlug: "paris",
+      startDate: new Date("2026-07-31"),
+      endDate: new Date("2026-07-31"),
       duration: "1 journée",
-      status: "COMPLETED", // see file header - flyer said sold out, date has passed
+      status: "COMPLETED" as const, // see file header - flyer said sold out, date has passed
       experiences: ["Visite guidée de la capitale", "Excursion en bus VIP"],
       practicalInformation:
         "Départ 6h30 - Parking de la Gare d'Angleur, Rue Denis Lecocq 1, 4031 Angleur (bus VIP). Retour le soir.",
       publishedAt: new Date("2026-07-01T00:00:00Z"),
     },
-  });
-
-  await prisma.trip.upsert({
-    where: { slug: "berlin-en-famille-2026" },
-    update: {},
-    create: {
+    {
       slug: "berlin-en-famille-2026",
       title: "Berlin en famille",
       shortDescription: "8 jours / 7 nuits en famille à Berlin",
       description:
         "Un séjour en famille à Berlin autour de dix expériences entre culture, nature et découvertes ludiques.",
-      destinationId: berlin.id,
-      startDate: new Date("2026-08-15T00:00:00+02:00"),
-      endDate: new Date("2026-08-22T00:00:00+02:00"),
+      destinationSlug: "berlin",
+      startDate: new Date("2026-08-15"),
+      endDate: new Date("2026-08-22"),
       duration: "8 jours / 7 nuits",
-      status: "CLOSED", // flyer: "réservations clôturées" (see file header)
+      status: "CLOSED" as const, // flyer: "réservations clôturées" (see file header)
       experiences: [
         "Berlin en panorama - découverte de la ville + panorama 360°",
         "Porte de Brandebourg + Parc Tiergarten",
@@ -119,27 +117,22 @@ async function main() {
       ],
       publishedAt: new Date("2026-06-01T00:00:00Z"),
     },
-  });
-
-  await prisma.trip.upsert({
-    where: { slug: "reims-2026-routes-du-champagne" },
-    update: {},
-    create: {
+    {
       slug: "reims-2026-routes-du-champagne",
       title: "Reims 2026 - Sur les routes du Champagne",
       shortDescription:
         "Découvertes, dégustations, patrimoine et art de vivre en Champagne",
       description:
         "Une parenthèse d'exception au cœur de la Champagne : maisons de Champagne, vignobles, patrimoine de Reims et moments de détente.",
-      destinationId: reims.id,
-      startDate: new Date("2026-10-02T00:00:00+02:00"),
-      endDate: new Date("2026-10-10T00:00:00+02:00"),
+      destinationSlug: "reims",
+      startDate: new Date("2026-10-02"),
+      endDate: new Date("2026-10-10"),
       duration: "9 jours / 8 nuits",
       // NEEDS_CONFIRMATION: no status or price is visible on this flyer
       // (unlike Paris/Berlin) - contract §11 forbids deducing it from the
       // flyer alone. UPCOMING because it's already publicly teased as a
       // "prochaine sortie" on the Berlin flyer, not a deduced booking state.
-      status: "UPCOMING",
+      status: "UPCOMING" as const,
       experiences: [
         "Découverte des maisons de Champagne",
         "Balades au cœur des vignobles",
@@ -148,11 +141,23 @@ async function main() {
       ],
       publishedAt: new Date("2026-08-01T00:00:00Z"),
     },
-  });
+  ];
 
-  console.log("[seed] Destinations: Paris, Berlin, Reims");
+  for (const trip of trips) {
+    const { slug, destinationSlug, ...rest } = trip;
+    const data = { ...rest, destinationId: destinationIds[destinationSlug] };
+    await prisma.trip.upsert({
+      where: { slug },
+      update: data,
+      create: { slug, ...data },
+    });
+  }
+
   console.log(
-    "[seed] Trips: paris-evasion-bien-etre-elegance (COMPLETED), berlin-en-famille-2026 (CLOSED), reims-2026-routes-du-champagne (UPCOMING, NEEDS_CONFIRMATION)",
+    `[seed] Destinations: ${destinations.map((d) => d.slug).join(", ")}`,
+  );
+  console.log(
+    `[seed] Trips: ${trips.map((t) => `${t.slug} (${t.status})`).join(", ")}`,
   );
 }
 

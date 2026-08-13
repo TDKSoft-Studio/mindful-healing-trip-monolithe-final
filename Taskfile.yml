@@ -18,6 +18,7 @@ tasks:
       - 'echo "==> Checking prerequisites"'
       - 'command -v docker >/dev/null || { echo "Docker is required (see docker.com)"; exit 1; }'
       - 'command -v pnpm >/dev/null || { echo "pnpm is required (see pnpm.io)"; exit 1; }'
+      - 'command -v gitleaks >/dev/null || { echo "gitleaks is required (see https://github.com/gitleaks/gitleaks#installing) - task ci runs a secret scan"; exit 1; }'
       - "test -f .env.local || cp .env.example .env.local"
       - 'echo "==> Installing dependencies"'
       # No --frozen-lockfile here (unlike ci.yml's "Install dependencies"
@@ -75,6 +76,16 @@ tasks:
     cmd: pnpm format:check
 
   # --- Security -------------------------------------------------------------
+  # gitleaks IS part of `task ci` (unlike security:audit below): a finding
+  # is about *our own* commit content - deterministic per-commit, exactly
+  # like lint/typecheck - not a third-party advisory that can appear with
+  # no change on our side. Requires gitleaks installed locally (checked in
+  # `task setup`, see https://github.com/gitleaks/gitleaks#installing);
+  # CI installs it itself via gitleaks/gitleaks-action.
+  "security:gitleaks":
+    desc: "Scan the repository for committed secrets (contract §36)."
+    cmd: gitleaks detect --source . --config .gitleaks.toml --no-banner
+
   # Not part of `task ci` (contract §33: checks must stay fast and non-
   # fragile) - a transitive advisory can appear with no code change on our
   # side, which would make CI flaky for reasons outside this PR's diff.
@@ -97,11 +108,22 @@ tasks:
     desc: "Run end-to-end tests (Playwright). Builds first."
     # Unlike ci.yml, this doesn't install Playwright browsers: CI runners
     # are ephemeral and need `playwright install --with-deps chromium` on
-    # every run, a dev machine only needs `pnpm exec playwright install`
-    # once (see README "Tests"). Both use the same `pnpm test:e2e` command.
+    # every run, a dev machine only needs `task playwright:install` once
+    # (see README "Tests"). Both use the same `pnpm test:e2e` command.
     cmds:
       - pnpm build
       - pnpm test:e2e
+
+  "playwright:install":
+    desc: "Install Playwright browsers once for local test:e2e runs."
+    # Idempotent: skips the (slow) download if chromium is already cached
+    # at Playwright's default location, so re-running this after it's
+    # already done is instant. If PLAYWRIGHT_BROWSERS_PATH is set to a
+    # custom location, this check won't see it - harmless, `playwright
+    # install` itself is a no-op when the browser is already present.
+    status:
+      - test -d "$HOME/.cache/ms-playwright"/chromium-*
+    cmd: pnpm exec playwright install chromium
 
   # --- Database ---------------------------------------------------------
   "db:migrate":
@@ -122,10 +144,13 @@ tasks:
   # Migrations + seed run before `test:coverage` because the integration
   # tests (tests/integration/) query real seeded Trip/Destination rows.
   # test:coverage instead of plain test: same test run, plus the 90%
-  # coverage gate - no point running the suite twice.
+  # coverage gate - no point running the suite twice. Gitleaks runs first -
+  # fail fast on the most severe issue class (a committed secret) before
+  # spending time on anything else.
   ci:
     desc: "Run the full local CI pipeline - mirrors .github/workflows/ci.yml."
     cmds:
+      - task: "security:gitleaks"
       - task: "format:check"
       - task: lint
       - task: typecheck

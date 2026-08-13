@@ -69,6 +69,21 @@ Prisma ORM v7 a changé de modèle de génération et de connexion :
   trompeuse - la première requête sur le pool peut réussir avant qu'une
   requête suivante échoue avec `no PostgreSQL user name specified in
 startup packet` (bug réel rencontré et corrigé pendant la Phase 3).
+- **`node .next/standalone/server.js` (la sortie standalone) ne charge pas
+  non plus `.env.local` tout seul**, contrairement à `next dev`/`next
+build` - c'est le comportement documenté et attendu de la sortie
+  standalone (pensée pour recevoir ses variables d'environnement du
+  runtime conteneur, pas d'un fichier dotenv commité). C'est exactement ce
+  que fait `compose.yaml` (`env_file`/`environment`) pour le développement
+  local et ce qu'un vrai déploiement doit faire en production. Pour que
+  `pnpm start` fonctionne aussi hors Docker (utilisé par le `webServer` de
+  Playwright dans `task test:e2e`), le script `start` utilise le flag natif
+  Node 22 `--env-file-if-exists=.env.local` (pas de dépendance
+  supplémentaire) - silencieux si le fichier est absent (cas Docker/prod),
+  charge la valeur s'il est présent (cas dev/test local). Bug réel
+  rencontré et corrigé pendant la Phase 4 (une page `/voyages/[slug]`
+  renvoyait une 500 "User was denied access on the database" en local sans
+  cette variable exportée manuellement).
 
 ## Sécurité
 
@@ -85,9 +100,12 @@ startup packet` (bug réel rencontré et corrigé pendant la Phase 3).
 ## Stratégie SEO
 
 Phase 1 pose les bases : `metadataBase` dérivé de `NEXT_PUBLIC_SITE_URL`,
-`lang="fr"`, titres templatés (`%s | Mindful Healing Trips`). Le travail
-complet (sitemap, robots.txt, Open Graph, JSON-LD par voyage/destination) est
-Phase 6 (contrat §18, §60) - ne pas le considérer optionnel.
+`lang="fr"`, titres templatés (`%s | Mindful Healing Trips`). Phase 4 ajoute
+un titre/description par page, y compris dynamiques pour chaque voyage/
+destination (`generateMetadata`, à partir de `seoTitle`/`seoDescription` ou
+d'un repli sur le titre/résumé). Le travail complet (sitemap, robots.txt,
+Open Graph, JSON-LD) reste Phase 6 (contrat §18, §60) - ne pas le considérer
+optionnel.
 
 ## Stratégie images
 
@@ -209,6 +227,49 @@ depuis `src/lib/trip-status.ts` (Phase 2), sont maintenant dans
 user name specified in startup packet`. Bug réel, visible uniquement en
   exécutant vraiment les tests d'intégration, pas via lint/typecheck.
 
+## Public Website (Phase 4)
+
+Pages publiques (contrat §41/§58) : `/`, `/voyages`, `/voyages/[slug]`,
+`/destinations`, `/destinations/[slug]`, `/a-propos`, `/contact`,
+`/mentions-legales`, `/politique-confidentialite`. Toutes lisent leurs
+données via les repositories Phase 3, jamais de contenu codé en dur.
+
+- **`TripCard`/`DestinationCard`/`BookingCTA`/`ImageGallery`** (déférés en
+  Phase 2, contrat §22) construits maintenant que de vraies données
+  existent pour les dimensionner. `ImageGallery` ne s'affiche pas encore
+  (aucune vraie photo fournie, `gallery: []` partout) mais est câblé et
+  prêt.
+- **Sections conditionnelles** : chaque section d'une fiche voyage/
+  destination (galerie, expériences, points forts, infos pratiques, inclus/
+  exclus, prix) ne s'affiche que si la donnée existe - pas de bloc vide ou
+  de placeholder trompeur pour du contenu non confirmé.
+- **`BookingCTA` distingue _pourquoi_ la réservation n'est pas possible**
+  (`src/lib/trip-status.ts#getBookingUnavailableMessage`) plutôt qu'un
+  message générique "n'est plus ouvert" - faux pour un voyage `UPCOMING`
+  qui n'a jamais été ouvert. Bug réel trouvé en relisant visuellement la
+  page Reims (le seul voyage `UPCOMING` seedé), pas détectable par
+  lint/typecheck/tests avant l'ajout du test de régression correspondant.
+- **`/contact`** n'affiche que les canaux de contact directs
+  (email/WhatsApp) - pas de `<form>` non fonctionnel : le vrai formulaire
+  (validation, anti-spam, envoi d'email) est Phase 5.
+- **`/mentions-legales` et `/politique-confidentialite`** sont des
+  placeholders `TODO_CONTENT_CONFIRMATION` explicites (contrat §37) -
+  aucun texte juridique n'a été fourni, donc aucun n'est inventé ; `robots:
+{ index: false }` tant que le contenu réel n'est pas en place.
+- **Titres `<h1>` uniques par page** : `SectionHeading` génère un `<h2>`
+  par défaut (pour labelliser une section sur une page qui a déjà son
+  propre `<h1>`, comme le hero de la homepage) mais accepte `level={1}`
+  pour les pages de listing (`/voyages`, `/destinations`, `/a-propos`,
+  `/contact`) qui n'avaient sinon aucun `<h1>` - bug réel trouvé par le
+  test E2E du parcours visiteur (`getByRole("heading", { level: 1 })` ne
+  trouvait rien), pas par lint/typecheck.
+- **Contraste réel cassé sur les cartes sans photo** : le texte du nom de
+  destination affiché en `text-brand-brown/60` sur fond `bg-brand-sand`
+  (`TripCard`/`DestinationCard` quand `coverImage`/`heroImage` est `null`)
+  mesurait ~3.57:1, sous le seuil AA (4.5:1) - trouvé par le scan axe
+  automatisé (`e2e/accessibility.spec.ts`) une fois étendu à ces pages,
+  corrigé en repassant en `text-brand-brown` (opacité pleine).
+
 ## CMS
 
 Aucun CMS en Phase 1-3. Le contenu métier (voyages, destinations) vit en
@@ -218,14 +279,15 @@ confirme. Aucun CMS n'est construit préventivement (contrat §39).
 
 ## Limites connues
 
-- Aucune page publique réelle ne consomme encore `Trip`/`Destination` -
-  homepage actuelle est un placeholder de fondation (Phase 4 : `/voyages`,
-  `/voyages/[slug]`, `/destinations`, `/destinations/[slug]`).
 - Statut de Reims et tous les prix `NEEDS_CONFIRMATION` - voir
   `prisma/seed.ts` et `docs/ENGINEERING_DISCOVERY.md` section 9.
-- `TripCard`, `DestinationCard`, `ImageGallery`, `ContactForm`, `BookingCTA`
-  toujours pas construits - Phase 4/5, maintenant que les données réelles
-  existent pour les dimensionner correctement.
+- `ContactForm` toujours pas construit - Phase 5, une fois la validation/
+  l'anti-spam/l'envoi d'email définis. `/contact` n'affiche pour l'instant
+  que les canaux directs (email/WhatsApp).
+- `/mentions-legales` et `/politique-confidentialite` sont des placeholders
+  explicites - textes juridiques réels non fournis (contrat §37).
+- Aucune vraie photographie (hero, voyages, destinations) - tout est
+  `TODO_ASSET`, `ImageGallery` est câblé mais ne s'affiche jamais encore.
 - Le build/run Docker n'a pas pu être exécuté dans l'environnement où ce
   code a été écrit (démon Docker indisponible dans ce bac à sable) ; la
   logique a été validée indirectement (`docker compose config`, et

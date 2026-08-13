@@ -9,19 +9,58 @@ existant et le contrat, ne pas trancher silencieusement : signaler ce qui
 existe, ce que demande le contrat, pourquoi il y a divergence, et une
 recommandation.
 
+## Stratégie de branches
+
+Modèle à deux branches longues, comme dans la plupart des organisations tech
+à l'échelle :
+
+```text
+main                    ← production. Protégée. Reçoit uniquement des PR
+  ↑                       depuis develop (releases), jamais de push direct.
+develop                  ← intégration. Protégée. Reçoit uniquement des PR
+  ↑                        depuis des branches courtes, CI obligatoire.
+feature/<sujet>            ← une branche par sujet de travail, courte durée
+fix/<sujet>                   de vie, supprimée après merge.
+chore/<sujet>
+docs/<sujet>
+```
+
+Règles :
+
+- **`main`** : toujours déployable. Aucun push direct - uniquement des PR
+  `develop` → `main` au moment d'une release.
+- **`develop`** : branche d'intégration continue. Aucun push direct -
+  uniquement des PR depuis des branches courtes. C'est la base par défaut
+  pour tout nouveau travail.
+- **Branches courtes** (`feature/`, `fix/`, `chore/`, `docs/`) : créées
+  depuis `develop`, une par sujet, fusionnées puis supprimées. Pas de
+  branches longue durée en dehors de `main`/`develop`.
+- **Protection de branche** (à configurer par un administrateur du
+  repository - GitHub Settings → Branches, non automatisable depuis les
+  outils disponibles à ce jour) :
+  - `main` et `develop` : pull request obligatoire (pas de push direct, pas
+    de force-push, pas de suppression) ; au moins une review approuvante ;
+    le check `CI / ci` (`.github/workflows/ci.yml`) doit être vert ;
+    branche à jour avec la base avant merge.
+  - `main` : en plus, restreindre qui peut merger (ex. leads uniquement) si
+    l'équipe le juge nécessaire.
+
 ## Workflow Git
 
 ```text
-git checkout -b <branche>
+git checkout develop
+git pull
+git checkout -b feature/<sujet>
 → développement
 → task ci
 → commit
 → push
-→ Pull Request
+→ Pull Request vers develop
 ```
 
 **Règle absolue : ne jamais ouvrir une Pull Request si `task ci` échoue
-localement.**
+localement.** Le CI GitHub (identique à `task ci`) doit également être vert
+avant tout merge - voir la protection de branche ci-dessus.
 
 ### Commits
 

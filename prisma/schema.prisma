@@ -1,7 +1,5 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
+// Prisma schema - Mindful Healing Trips
+// See ARCHITECTURE.md for the Prisma v7 driver-adapter setup this relies on.
 
 generator client {
   provider = "prisma-client"
@@ -10,4 +8,101 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+/// Mirrors src/lib/trip-status.ts's TripStatus union exactly (contract §9) -
+/// that file owns the display labels and booking rules, this owns storage.
+/// Keep both in sync if a value is ever added/removed.
+enum TripStatus {
+  DRAFT
+  UPCOMING
+  OPEN
+  LIMITED
+  SOLD_OUT
+  CLOSED
+  COMPLETED
+  CANCELLED
+}
+
+/// contract §9 (Destination) + §15 (destination pages).
+model Destination {
+  id               String @id @default(cuid())
+  slug             String @unique
+  name             String
+  country          String
+  shortDescription String
+  description      String @db.Text
+
+  /// No real destination photography has been supplied yet - nullable
+  /// rather than a placeholder path, so it's obvious in the data that a
+  /// real asset is still needed (TODO_ASSET, contract §21/§45).
+  heroImage            String?
+  gallery              String[] @default([])
+  highlights           String[] @default([])
+  practicalInformation String?  @db.Text
+
+  /// Distinct from Trip's publishedAt - contract §9 lists "published
+  /// status" for Destination specifically as a boolean.
+  published Boolean @default(false)
+
+  seoTitle       String?
+  seoDescription String?
+
+  trips Trip[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([published])
+}
+
+/// contract §9 (Trip) + §13/§14 (status display, trip page structure).
+model Trip {
+  id               String @id @default(cuid())
+  slug             String @unique
+  title            String
+  shortDescription String
+  description      String @db.Text
+
+  destinationId String
+  destination   Destination @relation(fields: [destinationId], references: [id])
+
+  startDate DateTime
+  endDate   DateTime
+  /// Free-text duration as shown to visitors (e.g. "8 jours / 7 nuits") -
+  /// kept separate from start/endDate because flyers phrase it as
+  /// marketing copy, not always a clean date-math derivation.
+  duration  String
+
+  status TripStatus @default(DRAFT)
+
+  coverImage           String? // TODO_ASSET: no real cover photo supplied yet.
+  gallery              String[] @default([])
+  highlights           String[] @default([])
+  experiences          String[] @default([])
+  practicalInformation String?  @db.Text
+  included             String[] @default([])
+  excluded             String[] @default([])
+
+  /// Nullable + no invented default: most seeded trips have no confirmed
+  /// price (contract §10 - never turn a visual guess into a hard number).
+  price    Decimal? @db.Decimal(10, 2)
+  currency String   @default("EUR")
+
+  bookingUrl  String?
+  bookingMode String? // e.g. "Contact direct" when there's no online flow.
+
+  /// Per-trip override; falls back to site-config's contact when null.
+  contactInformation String? @db.Text
+
+  seoTitle       String?
+  seoDescription String?
+
+  publishedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([destinationId])
+  @@index([status])
 }

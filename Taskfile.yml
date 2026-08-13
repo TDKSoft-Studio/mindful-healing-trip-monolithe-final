@@ -70,7 +70,7 @@ tasks:
 
   # --- Tests ----------------------------------------------------------------
   test:
-    desc: "Run unit tests (Vitest)."
+    desc: "Run unit + integration tests (Vitest). Integration tests need a migrated, seeded DB."
     cmd: pnpm test
 
   "test:e2e":
@@ -95,14 +95,17 @@ tasks:
   # --- Local CI -------------------------------------------------------------
   # Keep this task's step order identical to .github/workflows/ci.yml
   # (contract §31-32) - a step added/removed here must be mirrored there.
+  # Migrations + seed run before `test` because the integration tests
+  # (tests/integration/) query real seeded Trip/Destination rows.
   ci:
     desc: "Run the full local CI pipeline - mirrors .github/workflows/ci.yml."
     cmds:
       - task: "format:check"
       - task: lint
       - task: typecheck
-      - task: test
       - cmd: pnpm db:migrate:deploy
+      - cmd: pnpm db:seed
+      - task: test
       - task: "test:e2e" # builds internally, then runs Playwright
 
   # --- Docker -----------------------------------------------------------

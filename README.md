@@ -6,10 +6,10 @@ pour le contrat d'ingénierie de référence du projet, et
 [`docs/ENGINEERING_DISCOVERY.md`](docs/ENGINEERING_DISCOVERY.md) pour l'état
 des lieux initial du repository.
 
-> **Statut** : Phase 2 (Design System). Le stack technique, Docker, la base
-> de données, la CI, ainsi que les tokens de marque et les composants
-> réutilisables (Header, Footer, Button, etc.) sont en place ; les pages
-> publiques (voyages, destinations...) arrivent en Phase 3+.
+> **Statut** : Phase 3 (Content/Data). Le stack technique, le design system
+> et maintenant les modèles `Trip`/`Destination` (avec Paris/Berlin/Reims
+> seedés) sont en place ; les pages publiques qui les affichent arrivent en
+> Phase 4.
 
 ## Stack
 
@@ -65,7 +65,11 @@ task health                          # vérifie /api/health sur une instance dé
 
 ## Tests
 
-- **Unitaires** (`tests/unit/`) : logique métier, helpers - `task test`.
+- **Unitaires** (`tests/unit/`) : logique métier, helpers - pas de DB.
+- **Intégration** (`tests/integration/`) : requêtes réelles contre Postgres
+  via les repositories (`src/features/*/queries.ts`) - nécessite une base
+  migrée et seedée (`task db:migrate && task db:seed` avant `task test` en
+  dehors de `task ci`, qui le fait automatiquement).
 - **End-to-end** (`e2e/`) : parcours utilisateur avec Playwright, couvrant
   desktop et mobile - `task test:e2e` (build une version de production
   d'abord, puis lance le serveur standalone).
@@ -80,12 +84,20 @@ ContactForm...) dans [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 ## Base de données
 
-Le schéma est géré par Prisma (`prisma/schema.prisma`). Prisma ORM v7 exige
-un driver adapter explicite pour PostgreSQL (`@prisma/adapter-pg`) - voir
+Le schéma est géré par Prisma (`prisma/schema.prisma`) : `Trip`,
+`Destination`, et l'enum `TripStatus`. Prisma ORM v7 exige un driver
+adapter explicite pour PostgreSQL (`@prisma/adapter-pg`) - voir
 [`ARCHITECTURE.md`](ARCHITECTURE.md) pour le détail. Le client généré
 (`src/generated/prisma`) n'est jamais commité ; il est régénéré
 automatiquement à l'installation (`postinstall`) et après chaque changement
 de schéma.
+
+`prisma/seed.ts` peuple trois voyages (Paris, Berlin, Reims) à partir du
+contenu confirmé dans `docs/ENGINEERING_DISCOVERY.md` - voir
+[`ARCHITECTURE.md`](ARCHITECTURE.md) pour ce qui reste
+`NEEDS_CONFIRMATION` (statut de Reims, tous les prix). Les pages ne
+doivent jamais appeler Prisma directement : elles passent par
+`src/features/trips/queries.ts` et `src/features/destinations/queries.ts`.
 
 ```bash
 task db:migrate   # créer/appliquer une migration en dev

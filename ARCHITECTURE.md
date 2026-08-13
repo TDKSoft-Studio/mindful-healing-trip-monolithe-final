@@ -102,6 +102,27 @@ build` - c'est le comportement documenté et attendu de la sortie
   n'existe que côté serveur (`"use server"` en amont dans la chaîne
   d'appel), lit ses identifiants depuis les variables d'environnement
   (contrat §17).
+- **Headers de sécurité** (`next.config.ts`, Phase 6/8, contrat §36/§62) sur
+  toutes les réponses : `Content-Security-Policy`, `X-Content-Type-Options:
+nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy:
+strict-origin-when-cross-origin`, `Permissions-Policy` (caméra/micro/
+  géoloc désactivés - aucun n'est utilisé), `Strict-Transport-Security`, et
+  `poweredByHeader: false` (ne pas annoncer le framework). **CSP sans
+  nonce**, délibérément : la doc officielle Next.js
+  (`node_modules/next/dist/docs/01-app/02-guides/content-security-policy.md`)
+  exige qu'un CSP à base de nonce force **toutes** les pages en rendu
+  dynamique - une vraie régression de performance (contrat §74 classe la
+  performance au-dessus de la nouveauté) pour un site qui n'a aucun
+  contenu utilisateur rendu en HTML brut (le seul `dangerouslySetInnerHTML`
+  est notre propre JSON-LD généré serveur, déjà échappé) ni script tiers.
+  Vérifié empiriquement : zéro violation CSP en console sur les 9 pages
+  publiques et le parcours de soumission du formulaire de contact
+  (`e2e/security-headers.spec.ts`).
+- `pnpm audit` : aucune vulnérabilité connue au moment de la Phase 8.
+  `task security:audit` disponible pour un contrôle périodique -
+  volontairement absent de `task ci` (contrat §33 : un CI ne doit pas
+  devenir fragile à cause d'une alerte transitive sans rapport avec le
+  diff en cours).
 
 ## Stratégie SEO
 
@@ -347,6 +368,53 @@ vers le Server Action), erreurs de champ accessibles (`role="alert"`,
 (utilisé par le lien de repli de `BookingCTA` pour un voyage réservable
 sans URL de réservation encore fournie).
 
+## Production readiness (Phase 8)
+
+Contrat §62. Un passage dédié, distinct du code applicatif :
+
+- **Build/run Docker** : voir « Limites connues » ci-dessous - le daemon
+  Docker a pu être démarré dans ce bac à sable (nouveauté par rapport aux
+  phases précédentes), mais le pull des images depuis `docker.io` est
+  bloqué par la politique réseau de l'environnement (403 explicite, pas un
+  problème de confiance TLS) - `docker compose config` (validation
+  structurelle sans pull) est en revanche passé sans erreur.
+- **Variables d'environnement** : `.env.example` documente déjà toutes les
+  variables (contrat §27) ; aucune n'a de valeur secrète réelle committée.
+- **Migrations** : `pnpm db:migrate:deploy` (utilisé par `task ci` et
+  prévu pour un déploiement) applique les migrations Prisma de façon
+  idempotente - rejouer une migration déjà appliquée est un no-op.
+- **Sauvegardes** : aucune infrastructure d'hébergement n'étant encore
+  choisie, la sauvegarde de PostgreSQL reste la responsabilité de
+  l'environnement de production cible (la plupart des fournisseurs
+  gérés - Render, Railway, RDS, Supabase, etc. - proposent des sauvegardes
+  automatiques). Pour un Postgres auto-hébergé, un dump régulier suffit :
+  `pg_dump --format=custom $DATABASE_URL > backup-$(date +%F).dump`,
+  restauration via `pg_restore`. À documenter précisément une fois
+  l'hébergement choisi - ne pas inventer une politique de rétention avant
+  cette décision (contrat §68).
+- **Rollback** : la stratégie est git-based, cohérente avec le workflow
+  git-flow du projet (`CONTRIBUTING.md`) - revert du commit fautif sur
+  `main` (ou retag/redeploy de l'image Docker précédente si le registre en
+  conserve l'historique) plutôt qu'un mécanisme applicatif dédié. Une
+  migration Prisma défectueuse se corrige par une migration corrective
+  (roll-forward) plutôt qu'un rollback automatique - Prisma Migrate n'a
+  pas de « down migration » automatique, et en écrire une à l'aveugle
+  serait plus risqué que d'avancer.
+- **Logs** : stratégie minimale déjà en place (contrat §48) - `console.error`
+  avec préfixe contextuel (`[contact] ...`) sur les échecs email
+  (`src/features/contact/actions.ts`), capturé par stdout/stderr comme
+  n'importe quel processus Node - la plupart des plateformes
+  d'hébergement (et Docker lui-même via `docker logs`) l'agrègent sans
+  configuration supplémentaire. Pas de bibliothèque de logging structuré
+  (pino/winston) ajoutée : aucun agrégateur cible n'est encore choisi, et
+  en ajouter une maintenant serait une dépendance sans besoin réel
+  identifié (contrat §65).
+- **Monitoring** : `/api/health` (contrat §48/§49) est le point d'entrée
+  prévu pour un monitoring externe (uptime check, load balancer
+  healthcheck) - ne renvoie que `{ "status": "ok" }`, aucune information
+  interne.
+- **Headers de sécurité** : voir section « Sécurité » ci-dessus.
+
 ## CMS
 
 Aucun CMS en Phase 1-3. Le contenu métier (voyages, destinations) vit en
@@ -366,9 +434,14 @@ confirme. Aucun CMS n'est construit préventivement (contrat §39).
   explicites - textes juridiques réels non fournis (contrat §37).
 - Aucune vraie photographie (hero, voyages, destinations) - tout est
   `TODO_ASSET`, `ImageGallery` est câblé mais ne s'affiche jamais encore.
-- Le build/run Docker n'a pas pu être exécuté dans l'environnement où ce
-  code a été écrit (démon Docker indisponible dans ce bac à sable) ; la
-  logique a été validée indirectement (`docker compose config`, et
+- `docker build` n'a pas pu être mené à terme dans ce bac à sable : le
+  daemon Docker démarre correctement (Phase 8), mais le pull de
+  `node:22-alpine` depuis `docker.io` est bloqué par la politique réseau
+  de l'environnement (403 explicite sur le registre, pas un problème de
+  configuration du `Dockerfile`). Validé indirectement à la place :
+  `docker compose config` (validation structurelle sans pull), et
   build/démarrage du serveur standalone exécutés hors conteneur avec les
-  mêmes artefacts que le `Dockerfile` produit). À vérifier sur une machine
-  avec un démon Docker fonctionnel avant la mise en production.
+  mêmes artefacts que le `Dockerfile` produit (`output: "standalone"` +
+  `scripts/copy-standalone-assets.mjs`). À vérifier avec un
+  `docker build` complet sur une machine avec accès registre avant la
+  mise en production.

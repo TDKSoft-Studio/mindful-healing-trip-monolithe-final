@@ -18,11 +18,19 @@
   --color-brand-sand: #edd1ad;
   --color-brand-ivory: #f9eadc;
 
-  /* Semantic aliases - what components should reference day to day */
+  /* Semantic aliases - what components should reference day to day.
+     Every pair below is verified to meet WCAG 2.2 AA contrast (>=4.5:1 for
+     text, >=3:1 for UI component boundaries) - do not swap a foreground for
+     a raw opacity utility (e.g. text-brand-brown/50) without re-checking:
+     brand-brown at 50% on ivory is ~2.7:1 and fails AA. */
   --color-background: var(--color-brand-ivory);
   --color-foreground: var(--color-brand-brown);
+  --color-muted-foreground: #6a5345; /* brown ~75% on ivory, ~5.6:1 */
   --color-primary: var(--color-brand-ocean);
+  --color-primary-foreground: #ffffff; /* white on ocean, ~7.5:1 */
   --color-accent: var(--color-brand-sun);
+  --color-accent-foreground: var(--color-brand-brown); /* brown on sun, ~6:1 */
+  --color-ring: var(--color-brand-ocean); /* focus ring, ~5.9:1 on ivory */
 }
 
 @theme inline {
@@ -35,8 +43,12 @@
 
   --color-background: var(--color-background);
   --color-foreground: var(--color-foreground);
+  --color-muted-foreground: var(--color-muted-foreground);
   --color-primary: var(--color-primary);
+  --color-primary-foreground: var(--color-primary-foreground);
   --color-accent: var(--color-accent);
+  --color-accent-foreground: var(--color-accent-foreground);
+  --color-ring: var(--color-ring);
 
   /* Titles / narration use Lora, navigation / UI text uses Montserrat
      (contract §4). Font variables are populated by next/font in layout.tsx. */
@@ -47,6 +59,13 @@
 body {
   background: var(--color-background);
   color: var(--color-foreground);
+}
+
+/* Visible keyboard focus everywhere (contract §19) - relies on :focus-visible
+   so mouse clicks don't show a ring, only keyboard/AT navigation does. */
+:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: 2px;
 }
 
 /* Respect reduced-motion preferences (contract §19 accessibility) */

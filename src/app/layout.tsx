@@ -3,6 +3,10 @@ import { Lora, Montserrat } from "next/font/google";
 
 import { Footer } from "@/components/layout/footer";
 import { Header } from "@/components/layout/header";
+import { JsonLd } from "@/components/shared/json-ld";
+import { organizationJsonLd } from "@/lib/seo/json-ld";
+import { buildMetadata } from "@/lib/seo/metadata";
+import { siteConfig } from "@/lib/site-config";
 
 import "./globals.css";
 
@@ -18,16 +22,25 @@ const montserrat = Montserrat({
   display: "swap",
 });
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
-
+/**
+ * This IS the homepage's resolved metadata (contract §18): `/` has no
+ * metadata export of its own, so Next.js falls back to this. `title` is
+ * overridden below into the template form so every other page's plain
+ * title (e.g. "Nos voyages") gets suffixed into "Nos voyages | Mindful
+ * Healing Trips" for its <title> tag.
+ */
 export const metadata: Metadata = {
-  metadataBase: new URL(siteUrl),
+  metadataBase: new URL(siteConfig.siteUrl),
+  ...buildMetadata({
+    title: siteConfig.name,
+    description: siteConfig.description,
+    path: "/",
+    appendSiteName: false,
+  }),
   title: {
-    default: "Mindful Healing Trips",
-    template: "%s | Mindful Healing Trips",
+    default: siteConfig.name,
+    template: `%s | ${siteConfig.name}`,
   },
-  description:
-    "Voyagez. Respirez. Partagez. Des expériences pensées pour découvrir, se ressourcer et créer des souvenirs ensemble.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -37,6 +50,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${lora.variable} ${montserrat.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col font-sans">
+        <JsonLd data={organizationJsonLd()} />
         <a
           href="#main-content"
           className="focus:bg-primary focus:text-primary-foreground sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-lg focus:px-4 focus:py-2"

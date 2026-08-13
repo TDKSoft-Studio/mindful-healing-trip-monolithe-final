@@ -1,15 +1,15 @@
-import type { Metadata } from "next";
-
 import { Container } from "@/components/ui/container";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { TripCard } from "@/components/travel/trip-card";
 import { listPublishedTrips } from "@/features/trips/queries";
+import { buildMetadata } from "@/lib/seo/metadata";
 
-export const metadata: Metadata = {
+export const metadata = buildMetadata({
   title: "Nos voyages",
   description:
     "Découvrez tous les voyages Mindful Healing Trips : destinations, dates et statuts de réservation.",
-};
+  path: "/voyages",
+});
 
 export default async function VoyagesPage() {
   const trips = await listPublishedTrips();

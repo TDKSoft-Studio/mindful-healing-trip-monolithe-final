@@ -1,12 +1,14 @@
-import type { Metadata } from "next";
-
 import { Container } from "@/components/ui/container";
 import { SectionHeading } from "@/components/ui/section-heading";
+import { buildMetadata } from "@/lib/seo/metadata";
 
-export const metadata: Metadata = {
+export const metadata = buildMetadata({
   title: "Politique de confidentialité",
-  robots: { index: false },
-};
+  description:
+    "Politique de confidentialité de Mindful Healing Trips - page en attente de confirmation du contenu officiel conforme RGPD.",
+  path: "/politique-confidentialite",
+  noIndex: true,
+});
 
 /**
  * Placeholder (contract §37): "Ne jamais inventer les textes juridiques

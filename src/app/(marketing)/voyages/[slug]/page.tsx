@@ -6,7 +6,10 @@ import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { Container } from "@/components/ui/container";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { ImageGallery } from "@/components/shared/image-gallery";
+import { JsonLd } from "@/components/shared/json-ld";
 import { getPublishedTripBySlug } from "@/features/trips/queries";
+import { tripJsonLd } from "@/lib/seo/json-ld";
+import { buildMetadata } from "@/lib/seo/metadata";
 import { siteConfig } from "@/lib/site-config";
 import { formatDateRange } from "@/lib/utils/format-date-range";
 
@@ -21,10 +24,12 @@ export async function generateMetadata({
   const trip = await getPublishedTripBySlug(slug);
   if (!trip) return {};
 
-  return {
+  return buildMetadata({
     title: trip.seoTitle ?? trip.title,
     description: trip.seoDescription ?? trip.shortDescription,
-  };
+    path: `/voyages/${trip.slug}`,
+    image: trip.coverImage ?? undefined,
+  });
 }
 
 export default async function TripPage({ params }: { params: Params }) {
@@ -39,6 +44,7 @@ export default async function TripPage({ params }: { params: Params }) {
 
   return (
     <main id="main-content" className="flex flex-1 flex-col py-16 sm:py-24">
+      <JsonLd data={tripJsonLd(trip)} />
       <Container className="flex flex-col gap-10">
         <Breadcrumb
           items={[

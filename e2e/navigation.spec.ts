@@ -19,10 +19,8 @@ test.describe("Header", () => {
 
     await header.getByRole("link", { name: "Contact" }).click();
     await expect(page).toHaveURL("/contact");
-    // /contact isn't built yet (Phase 4) - the not-found page is the
-    // correct, honest outcome for now.
     await expect(
-      page.getByRole("heading", { name: "Page introuvable" }),
+      page.getByRole("heading", { name: "Nous contacter" }),
     ).toBeVisible();
 
     await page.goBack();

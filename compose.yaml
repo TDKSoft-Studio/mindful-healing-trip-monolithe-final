@@ -1,0 +1,59 @@
+# Local development environment (contract §23-24).
+#
+# `docker compose up` (or `task dev`) starts PostgreSQL, Mailpit, and the app
+# in dev mode with hot reload. This intentionally does NOT build the
+# production Dockerfile - that image is optimized for deployment, not
+# iteration speed. Credentials below are development-only defaults; they
+# must never be reused in production (contract §24).
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mindfultrip
+      POSTGRES_PASSWORD: devpassword
+      POSTGRES_DB: mindfultrip
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mindfultrip -d mindfultrip"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # SMTP test server for the contact form (contract §29). Web UI on :8025.
+  # Pin a specific tag once the team settles on an upgrade cadence.
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+  app:
+    image: node:22-alpine
+    working_dir: /app
+    command: sh -c "corepack enable && pnpm install --frozen-lockfile && pnpm dev"
+    env_file:
+      - .env.local
+    environment:
+      DATABASE_URL: postgresql://mindfultrip:devpassword@postgres:5432/mindfultrip?schema=public
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - app-node-modules:/app/node_modules
+      - app-next-cache:/app/.next
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres-data:
+  app-node-modules:
+  app-next-cache:

@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+/**
+ * Mindful Healing Trips - design tokens
+ *
+ * Source of truth: docs/assets/CLAUDE_ENGINEERING_CONTRACT.md (section 3-4)
+ * and the official brand board, confirmed in docs/ENGINEERING_DISCOVERY.md.
+ *
+ * Do not add colors outside this palette without updating the contract -
+ * new colors must be derived from these tokens and justified (contract §3).
+ */
+:root {
+  /* Brand palette */
+  --color-brand-brown: #3a2113;
+  --color-brand-ocean: #1c5b71;
+  --color-brand-sun: #e48e51;
+  --color-brand-gold: #e4af56;
+  --color-brand-sand: #edd1ad;
+  --color-brand-ivory: #f9eadc;
+
+  /* Semantic aliases - what components should reference day to day */
+  --color-background: var(--color-brand-ivory);
+  --color-foreground: var(--color-brand-brown);
+  --color-primary: var(--color-brand-ocean);
+  --color-accent: var(--color-brand-sun);
+}
+
+@theme inline {
+  --color-brand-brown: var(--color-brand-brown);
+  --color-brand-ocean: var(--color-brand-ocean);
+  --color-brand-sun: var(--color-brand-sun);
+  --color-brand-gold: var(--color-brand-gold);
+  --color-brand-sand: var(--color-brand-sand);
+  --color-brand-ivory: var(--color-brand-ivory);
+
+  --color-background: var(--color-background);
+  --color-foreground: var(--color-foreground);
+  --color-primary: var(--color-primary);
+  --color-accent: var(--color-accent);
+
+  /* Titles / narration use Lora, navigation / UI text uses Montserrat
+     (contract §4). Font variables are populated by next/font in layout.tsx. */
+  --font-heading: var(--font-lora);
+  --font-sans: var(--font-montserrat);
+}
+
+body {
+  background: var(--color-background);
+  color: var(--color-foreground);
+}
+
+/* Respect reduced-motion preferences (contract §19 accessibility) */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

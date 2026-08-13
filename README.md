@@ -6,9 +6,11 @@ pour le contrat d'ingénierie de référence du projet, et
 [`docs/ENGINEERING_DISCOVERY.md`](docs/ENGINEERING_DISCOVERY.md) pour l'état
 des lieux initial du repository.
 
-> **Statut** : Phase 4 (Public Website). Le site public est navigable de
-> bout en bout : accueil, voyages, destinations, à propos, contact, mentions
-> légales. Le formulaire de contact fonctionnel arrive en Phase 5.
+> **Statut** : Phase 5 (Formulaire de contact). Le site public est navigable
+> de bout en bout : accueil, voyages, destinations, à propos, contact,
+> mentions légales. Le formulaire de contact est fonctionnel (validation
+> client + serveur, anti-spam honeypot + rate limiting, stockage en base,
+> notifications email).
 
 ## Stack
 
@@ -78,9 +80,8 @@ task health                          # vérifie /api/health sur une instance dé
 Composants réutilisables sous `src/components/` (`ui/`, `layout/`,
 `navigation/`, `forms/`, `travel/`, `destinations/`, `shared/`), tokens de
 marque dans `src/app/globals.css`, configuration centrale (nav, contact,
-réseaux) dans `src/lib/site-config.ts`. Détail des choix et de ce qui reste
-volontairement non construit (ContactForm...) dans
-[`ARCHITECTURE.md`](ARCHITECTURE.md).
+réseaux) dans `src/lib/site-config.ts`. Détail des choix et de l'architecture
+du formulaire de contact dans [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 ## Pages
 
@@ -91,7 +92,7 @@ volontairement non construit (ContactForm...) dans
 /destinations                  toutes les destinations
 /destinations/[slug]           fiche destination + ses voyages
 /a-propos                      positionnement
-/contact                       canaux de contact directs (formulaire en Phase 5)
+/contact                       canaux de contact directs + formulaire
 /mentions-legales              placeholder - contenu à confirmer
 /politique-confidentialite     placeholder - contenu à confirmer
 ```

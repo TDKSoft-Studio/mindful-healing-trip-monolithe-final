@@ -1,104 +1,42 @@
-import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { prisma } from "@/lib/db/prisma";
+import type { Destination, Trip } from "@prisma/client";
 
-import { Breadcrumb } from "@/components/ui/breadcrumb";
-import { Container } from "@/components/ui/container";
-import { SectionHeading } from "@/components/ui/section-heading";
-import { ImageGallery } from "@/components/shared/image-gallery";
-import { TripCard } from "@/components/travel/trip-card";
-import { getPublishedDestinationBySlug } from "@/features/destinations/queries";
-
-type Params = Promise<{ slug: string }>;
-
-export async function generateMetadata({
+export default async function DestinationPage({
   params,
 }: {
-  params: Params;
-}): Promise<Metadata> {
+  params: Promise<{ slug: string }>;
+}) {
   const { slug } = await params;
-  const destination = await getPublishedDestinationBySlug(slug);
-  if (!destination) return {};
-
-  return {
-    title: destination.seoTitle ?? destination.name,
-    description: destination.seoDescription ?? destination.shortDescription,
-  };
-}
-
-export default async function DestinationPage({ params }: { params: Params }) {
-  const { slug } = await params;
-  const destination = await getPublishedDestinationBySlug(slug);
+  const destination = await prisma.destination.findUnique({
+    where: { slug },
+    include: { trips: true },
+  });
 
   if (!destination) {
-    notFound();
+    return <div>Destination not found</div>;
   }
 
   return (
-    <main id="main-content" className="flex flex-1 flex-col py-16 sm:py-24">
-      <Container className="flex flex-col gap-10">
-        <Breadcrumb
-          items={[
-            { label: "Accueil", href: "/" },
-            { label: "Destinations", href: "/destinations" },
-            { label: destination.name },
-          ]}
-        />
+    <div className="container mx-auto px-4 py-8">
+      <h1 className="mb-4 text-3xl font-bold">{destination.name}</h1>
+      <p className="mb-6">{destination.description}</p>
 
-        <div className="flex flex-col gap-4">
-          <span className="text-primary text-sm font-semibold">
-            {destination.country}
-          </span>
-          <h1 className="font-heading text-foreground text-4xl font-semibold sm:text-5xl">
-            {destination.name}
-          </h1>
-          <p className="text-foreground max-w-3xl text-lg">
-            {destination.description}
-          </p>
-        </div>
+      <h2 className="mb-4 text-2xl font-semibold">Points forts</h2>
+      <ul className="mb-6 list-disc pl-6">
+        {destination.highlights.map((highlight: string) => (
+          <li key={highlight}>{highlight}</li>
+        ))}
+      </ul>
 
-        <ImageGallery images={destination.gallery} label={destination.name} />
-
-        {destination.highlights.length > 0 ? (
-          <section className="flex flex-col gap-4">
-            <h2 className="font-heading text-foreground text-2xl font-semibold">
-              Points forts
-            </h2>
-            <ul className="grid gap-2 sm:grid-cols-2">
-              {destination.highlights.map((highlight) => (
-                <li key={highlight} className="text-foreground">
-                  {highlight}
-                </li>
-              ))}
-            </ul>
-          </section>
-        ) : null}
-
-        {destination.practicalInformation ? (
-          <section className="flex flex-col gap-4">
-            <h2 className="font-heading text-foreground text-2xl font-semibold">
-              Informations pratiques
-            </h2>
-            <p className="text-foreground">
-              {destination.practicalInformation}
-            </p>
-          </section>
-        ) : null}
-
-        <section className="flex flex-col gap-6">
-          <SectionHeading title={`Voyages à ${destination.name}`} />
-          {destination.trips.length > 0 ? (
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {destination.trips.map((trip) => (
-                <TripCard key={trip.id} trip={{ ...trip, destination }} />
-              ))}
-            </div>
-          ) : (
-            <p className="text-muted-foreground">
-              Aucun voyage disponible actuellement pour cette destination.
-            </p>
-          )}
-        </section>
-      </Container>
-    </main>
+      <h2 className="mb-4 text-2xl font-semibold">Voyages disponibles</h2>
+      <div className="grid gap-4">
+        {destination.trips.map((trip: Trip) => (
+          <div key={trip.id} className="rounded border p-4">
+            <h3 className="text-xl font-semibold">{trip.title}</h3>
+            <p>{trip.shortDescription}</p>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

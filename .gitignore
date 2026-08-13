@@ -58,3 +58,5 @@ skills-lock.json
 
 # Other
 .task/*
+.task/checksum/gitleaks-check
+.task/checksum/deps-install

@@ -2,12 +2,13 @@
 // See ARCHITECTURE.md for the Prisma v7 driver-adapter setup this relies on.
 
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider = "prisma-client-js"
+  // output   = "../src/generated/prisma"  // Commenté pour utiliser l'emplacement par défaut
 }
 
 datasource db {
   provider = "postgresql"
+  // La propriété `url` a été déplacée vers prisma.config.ts
 }
 
 /// Mirrors src/lib/trip-status.ts's TripStatus union exactly (contract §9) -

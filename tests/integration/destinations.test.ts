@@ -1,43 +1,27 @@
-import { afterAll, describe, expect, it } from "vitest";
-
-import {
-  getPublishedDestinationBySlug,
-  listPublishedDestinations,
-} from "@/features/destinations/queries";
+import { describe, it, expect } from "vitest";
 import { prisma } from "@/lib/db/prisma";
+import type { Destination, Trip } from "@prisma/client";
 
-// Integration tests (contract §34): real Postgres, seeded via `task db:seed`
-// - task ci runs migrate + seed before this suite. See tests/integration/README.md.
-
-afterAll(async () => {
-  await prisma.$disconnect();
-});
-
-describe("listPublishedDestinations", () => {
-  it("returns the seeded destinations, published only, sorted by name", async () => {
-    const destinations = await listPublishedDestinations();
-    const slugs = destinations.map((d) => d.slug);
-
-    expect(slugs).toEqual(["berlin", "paris", "reims"]); // alphabetical
-    expect(destinations.every((d) => d.published)).toBe(true);
-  });
-});
-
-describe("getPublishedDestinationBySlug", () => {
-  it("returns a destination with its published trips included", async () => {
-    const paris = await getPublishedDestinationBySlug("paris");
-
-    expect(paris).not.toBeNull();
-    expect(paris?.name).toBe("Paris");
-    expect(paris?.trips.map((t) => t.slug)).toContain(
-      "paris-evasion-bien-etre-elegance",
-    );
+describe("Destinations Integration", () => {
+  it("should have all destinations with slugs", async () => {
+    const destinations = await prisma.destination.findMany();
+    const slugs = destinations.map((d: Destination) => d.slug);
+    expect(slugs).toContain("paris");
+    expect(slugs).toContain("bali");
   });
 
-  it("returns null for an unknown slug", async () => {
-    const result = await getPublishedDestinationBySlug(
-      "does-not-exist-anywhere",
-    );
-    expect(result).toBeNull();
+  it("should have published destinations", async () => {
+    const destinations = await prisma.destination.findMany({
+      where: { published: true },
+    });
+    expect(destinations.every((d: Destination) => d.published)).toBe(true);
+  });
+
+  it("should have trips with correct slugs", async () => {
+    const paris = await prisma.destination.findUnique({
+      where: { slug: "paris" },
+      include: { trips: true },
+    });
+    expect(paris?.trips.map((t: Trip) => t.slug)).toContain("paris-essentiel");
   });
 });

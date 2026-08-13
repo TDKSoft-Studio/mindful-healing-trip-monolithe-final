@@ -17,6 +17,8 @@ const eslintConfig = defineConfig([
     // Playwright artifacts.
     "playwright-report/**",
     "test-results/**",
+    // Vitest coverage report - generated, not ours to lint.
+    "coverage/**",
   ]),
 ]);
 

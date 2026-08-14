@@ -31,6 +31,20 @@ permissions:
 
 env:
   IMAGE: ghcr.io/tdksoft-studio/mindful-healing-trip-monolithe-final
+  # None of this app's DB-backed pages declare `dynamic`/`revalidate`, so
+  # `next build` statically prerenders them by querying the database live
+  # at build time (confirmed by a real failed build: "Can't reach
+  # database server" with no DATABASE_URL at all). This throwaway,
+  # migrated-and-seeded Postgres exists solely so that build can
+  # succeed -- it is not a secret (same well-known dev credential as
+  # ci.yml already uses), but whatever it contains gets baked into this
+  # image's static output. See
+  # docs/adr/0009-image-build-time-data-baking.md in the infrastructure
+  # repository for the accepted tradeoff this implies (this image is
+  # NOT purely code -- its static pages carry a snapshot of whatever was
+  # seeded here) and why the alternative (making those pages dynamic)
+  # was deferred rather than done here.
+  DATABASE_URL: postgresql://mindfultrip:devpassword@localhost:5432/mindfultrip?schema=public
 
 jobs:
   publish:
@@ -45,6 +59,23 @@ jobs:
     permissions:
       contents: read
       packages: write
+    # Mirrors ci.yml's postgres service exactly -- same image version,
+    # same throwaway credentials -- so `pnpm db:migrate:deploy`/`db:seed`
+    # behave identically to the already-proven CI path.
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: mindfultrip
+          POSTGRES_PASSWORD: devpassword
+          POSTGRES_DB: mindfultrip
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U mindfultrip -d mindfultrip"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       # Single source of truth for "which commit" and "which tags" so the
       # rest of this job doesn't need to know which trigger fired it.
@@ -76,8 +107,37 @@ jobs:
         with:
           ref: ${{ steps.meta.outputs.revision }}
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # Runs on the runner itself (not inside the Docker build) so the
+      # throwaway DB is migrated and seeded before `docker build` ever
+      # starts -- mirrors ci.yml's own migrate/seed/build ordering.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Apply database migrations (throwaway build-time DB)
+        run: pnpm db:migrate:deploy
+
+      - name: Seed database (throwaway build-time DB)
+        run: pnpm db:seed
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+        with:
+          # The image build's `RUN pnpm build` needs to reach the
+          # postgres service above, which GitHub Actions publishes on
+          # the *runner's* localhost -- the default buildx driver runs
+          # in its own container on a separate network and can't see
+          # it. `network=host` puts the builder container on the
+          # runner's network namespace instead.
+          driver-opts: network=host
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
@@ -102,6 +162,12 @@ jobs:
           # limitations"), not something this workflow can fix.
           build-args: |
             NEXT_PUBLIC_SITE_URL=https://healingtrip.nextgen-cares.org
+            DATABASE_URL=${{ env.DATABASE_URL }}
+          # Matches the buildx driver's network=host above -- the build
+          # itself (not just the builder daemon) must run with host
+          # networking for `RUN pnpm build` to reach the postgres service
+          # on the runner's localhost:5432.
+          network: host
           tags: ${{ steps.meta.outputs.tags }}
           labels: |
             org.opencontainers.image.revision=${{ steps.meta.outputs.revision }}

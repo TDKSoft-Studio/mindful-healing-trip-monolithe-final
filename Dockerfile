@@ -29,6 +29,18 @@ COPY . .
 # NEXT_PUBLIC_* values are baked into the client bundle at build time.
 ARG NEXT_PUBLIC_SITE_URL
 ENV NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL}
+# None of this app's DB-backed pages (/, /voyages, /destinations/[slug],
+# ...) declare `dynamic`/`revalidate`, so `next build` statically
+# prerenders them -- which means it queries the database live, at build
+# time, or the build fails outright ("Can't reach database server").
+# DATABASE_URL here must point to a real, reachable Postgres for that
+# reason alone; whatever rows exist in it get baked into this image's
+# static output. See docs/adr/0009-image-build-time-data-baking.md in
+# the infrastructure repository for the tradeoff this implies and why it
+# was accepted rather than fixed at the application-architecture level
+# for now.
+ARG DATABASE_URL
+ENV DATABASE_URL=${DATABASE_URL}
 RUN pnpm build
 
 # --- runner: minimal production runtime --------------------------------------

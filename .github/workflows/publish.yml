@@ -18,6 +18,13 @@ on:
     workflows: ["CI"]
     types: [completed]
     branches: [main]
+  # Lets an operator re-publish without a new commit (e.g. after a
+  # transient registry failure), and lets a fix to this Dockerfile/build
+  # be validated for real on its own branch before merging to main --
+  # workflow_dispatch is independent of the workflow_run gate above (no
+  # `if: conclusion == 'success'` check applies to it), so use it only
+  # when you already trust the commit being built.
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -29,17 +36,45 @@ jobs:
   publish:
     # Only publish when CI actually passed on the commit that triggered
     # it — a `workflow_run` fires regardless of the upstream conclusion,
-    # so this check is load-bearing, not decorative.
-    if: github.event.workflow_run.conclusion == 'success'
+    # so this check is load-bearing, not decorative. A manual
+    # workflow_dispatch has no upstream conclusion to check -- dispatching
+    # it at all is the trust signal, e.g. to validate a fix on its own
+    # branch before merging to main.
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
     steps:
+      # Single source of truth for "which commit" and "which tags" so the
+      # rest of this job doesn't need to know which trigger fired it.
+      - name: Compute revision and tags
+        id: meta
+        run: |
+          set -Eeuo pipefail
+          REVISION="${{ github.event.workflow_run.head_sha }}"
+          if [ -z "${REVISION}" ]; then
+            REVISION="${{ github.sha }}"
+          fi
+          echo "revision=${REVISION}" >> "${GITHUB_OUTPUT}"
+          {
+            echo "tags<<PUBLISH_TAGS_EOF"
+            echo "${IMAGE}:${REVISION}"
+            # :latest only for a real workflow_run publish off main -- a
+            # manual workflow_dispatch (e.g. testing a fix branch) must
+            # never overwrite it with an unmerged commit's build.
+            if [ "${{ github.event_name }}" = "workflow_run" ]; then
+              echo "${IMAGE}:latest"
+            fi
+            echo "PUBLISH_TAGS_EOF"
+          } >> "${GITHUB_OUTPUT}"
+        env:
+          IMAGE: ${{ env.IMAGE }}
+
       - name: Checkout the exact commit CI validated
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ steps.meta.outputs.revision }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -67,11 +102,9 @@ jobs:
           # limitations"), not something this workflow can fix.
           build-args: |
             NEXT_PUBLIC_SITE_URL=https://healingtrip.nextgen-cares.org
-          tags: |
-            ${{ env.IMAGE }}:${{ github.event.workflow_run.head_sha }}
-            ${{ env.IMAGE }}:latest
+          tags: ${{ steps.meta.outputs.tags }}
           labels: |
-            org.opencontainers.image.revision=${{ github.event.workflow_run.head_sha }}
+            org.opencontainers.image.revision=${{ steps.meta.outputs.revision }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
           # Explicitly off for now, not forgotten: keeps the pushed
           # artifact a single, unambiguous digest while the supply-chain
@@ -88,14 +121,16 @@ jobs:
             echo
             echo "\`${IMAGE}@${DIGEST}\`"
             echo
-            echo "Git revision: \`${SHA}\`"
+            echo "Git revision: \`${REVISION}\`"
+            echo "Trigger: \`${EVENT_NAME}\`"
             echo
-            echo "Use this digest — not the \`:latest\` or \`:${SHA}\` tag — as"
-            echo "\`web.image.digest\` when deploying via the infrastructure"
-            echo "repository (docs/CLAUDE.md §14 there: production requires an"
-            echo "immutable digest, never a mutable tag)."
+            echo "Use this digest — not a tag — as \`web.image.digest\` when"
+            echo "deploying via the infrastructure repository"
+            echo "(docs/CLAUDE.md §14 there: production requires an immutable"
+            echo "digest, never a mutable tag)."
           } >> "$GITHUB_STEP_SUMMARY"
         env:
           IMAGE: ${{ env.IMAGE }}
           DIGEST: ${{ steps.build.outputs.digest }}
-          SHA: ${{ github.event.workflow_run.head_sha }}
+          REVISION: ${{ steps.meta.outputs.revision }}
+          EVENT_NAME: ${{ github.event_name }}

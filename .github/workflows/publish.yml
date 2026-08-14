@@ -1,0 +1,101 @@
+name: Publish Image
+
+# Publishes the production OCI image to GHCR once the CI workflow has
+# passed on `main`. Deliberately a separate workflow from ci.yml, which
+# mirrors `task ci` exactly (see its own header comment) — image
+# publishing is a distinct concern (build once, promote the same
+# artifact everywhere; see the infrastructure repository's
+# docs/CLAUDE.md §44/§45) and must never be an implicit side effect of
+# the test/lint/build pipeline, nor run on unreviewed pull request code.
+#
+# This is the single build point for the application image: the
+# infrastructure repository never rebuilds it — it only ever references
+# the digest published here (docs/CLAUDE.md §44 in the infrastructure
+# repository).
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  IMAGE: ghcr.io/tdksoft-studio/mindful-healing-trip-monolithe-final
+
+jobs:
+  publish:
+    # Only publish when CI actually passed on the commit that triggered
+    # it — a `workflow_run` fires regardless of the upstream conclusion,
+    # so this check is load-bearing, not decorative.
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout the exact commit CI validated
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          # NEXT_PUBLIC_SITE_URL is inlined into the client bundle at
+          # build time (Dockerfile ARG) — one shared artifact is
+          # promoted to both staging and production (infra §45), so it
+          # is baked with the confirmed production canonical domain.
+          # Staging showing production canonical URLs is a known,
+          # already-documented limitation (see the infrastructure
+          # repository's deploy/helm/mindfultrip/README.md "Known
+          # limitations"), not something this workflow can fix.
+          build-args: |
+            NEXT_PUBLIC_SITE_URL=https://healingtrip.nextgen-cares.org
+          tags: |
+            ${{ env.IMAGE }}:${{ github.event.workflow_run.head_sha }}
+            ${{ env.IMAGE }}:latest
+          labels: |
+            org.opencontainers.image.revision=${{ github.event.workflow_run.head_sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          # Explicitly off for now, not forgotten: keeps the pushed
+          # artifact a single, unambiguous digest while the supply-chain
+          # controls in docs/CLAUDE.md §51 (SBOM, provenance, signing)
+          # are still at "not yet adopted" maturity. Revisit together
+          # when that maturity level changes.
+          provenance: false
+          sbom: false
+
+      - name: Record the published artifact
+        run: |
+          {
+            echo "### Published image"
+            echo
+            echo "\`${IMAGE}@${DIGEST}\`"
+            echo
+            echo "Git revision: \`${SHA}\`"
+            echo
+            echo "Use this digest — not the \`:latest\` or \`:${SHA}\` tag — as"
+            echo "\`web.image.digest\` when deploying via the infrastructure"
+            echo "repository (docs/CLAUDE.md §14 there: production requires an"
+            echo "immutable digest, never a mutable tag)."
+          } >> "$GITHUB_STEP_SUMMARY"
+        env:
+          IMAGE: ${{ env.IMAGE }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+          SHA: ${{ github.event.workflow_run.head_sha }}

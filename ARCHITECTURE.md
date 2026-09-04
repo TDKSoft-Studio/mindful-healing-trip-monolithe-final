@@ -238,6 +238,46 @@ spécial Docker.
 (hot reload via bind-mount, identifiants de dev) - il ne construit pas
 l'image de production et ne doit jamais servir de référence pour la prod.
 
+### Alternative : Vercel
+
+Le Docker/self-hosting ci-dessus reste la référence, mais le monolithe se
+déploie aussi tel quel sur Vercel (import du repo GitHub depuis le
+dashboard - aucune configuration `vercel.json` requise) :
+
+- **Script `vercel-build`** (`package.json`) : Vercel détecte et utilise ce
+  nom de script à la place de `build` s'il existe. Il enchaîne
+  `prisma migrate deploy` puis `next build` - Vercel ne lance jamais les
+  migrations tout seul, contrairement à `task ci`/`compose.yaml` qui les
+  déclenchent explicitement en amont. `prisma generate` s'exécute déjà via
+  le hook `postinstall`, avant que ce script ne tourne.
+- **`DATABASE_URL` doit pointer vers une base accessible depuis Internet** -
+  la base `compose.yaml` n'est joignable qu'en local. Toute offre Postgres
+  managée convient (intégration Vercel Postgres/Neon, Supabase, Railway,
+  etc.) tant que le driver adapter `@prisma/adapter-pg` peut s'y connecter
+  en TCP standard.
+- **Variables d'environnement à configurer dans le dashboard Vercel**
+  (Project Settings → Environment Variables) : `DATABASE_URL`,
+  `NEXT_PUBLIC_SITE_URL`, `CONTACT_EMAIL`, `SMTP_HOST`/`SMTP_PORT`/
+  `SMTP_USER`/`SMTP_PASSWORD` - voir `.env.example` pour le rôle de
+  chacune. Sans SMTP configuré, le formulaire de contact continue de
+  fonctionner (la demande est stockée en base) mais aucun email de
+  notification ne part - à corriger avant toute annonce publique du site.
+- **`output: "standalone"` (`next.config.ts`) est sans effet sur Vercel** :
+  Vercel produit son propre artefact de déploiement et ignore la sortie
+  standalone : elle reste nécessaire uniquement pour le `Dockerfile`. De
+  même, `scripts/copy-standalone-assets.mjs` (hook `postbuild`) ne
+  s'exécute pas via `vercel-build` (qui n'invoque pas le script `build`
+  nommé) - sans conséquence puisqu'il ne fait rien d'utile pour Vercel de
+  toute façon.
+- **L'envoi d'email du formulaire de contact dépend de `after()`
+  (`next/server`), pas d'un `void` fire-and-forget brut** : un déploiement
+  serverless comme Vercel gèle la fonction dès la réponse envoyée, ce qui
+  aurait tué un `void notifyByEmail(...)` en plein vol avant l'envoi SMTP.
+  `after()` est l'API portable de Next.js pour ce cas précis - elle
+  s'appuie sur le `waitUntil` de la plateforme cible quand il existe (Vercel
+  en fournit un) et se comporte normalement sur un process Node longue
+  durée sinon (voir `src/features/contact/actions.ts`).
+
 ## Domaine et contact canoniques
 
 Confirmés par le commanditaire le 2026-08-13 (résolvant l'ambiguïté notée en

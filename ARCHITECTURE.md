@@ -246,10 +246,15 @@ dashboard - aucune configuration `vercel.json` requise) :
 
 - **Script `vercel-build`** (`package.json`) : Vercel détecte et utilise ce
   nom de script à la place de `build` s'il existe. Il enchaîne
-  `prisma migrate deploy` puis `next build` - Vercel ne lance jamais les
-  migrations tout seul, contrairement à `task ci`/`compose.yaml` qui les
-  déclenchent explicitement en amont. `prisma generate` s'exécute déjà via
-  le hook `postinstall`, avant que ce script ne tourne.
+  `prisma migrate deploy`, `prisma db seed`, puis `next build` - Vercel ne
+  lance jamais les migrations (ni le seed) tout seul, contrairement à
+  `task ci`/`compose.yaml` qui les déclenchent explicitement en amont.
+  `prisma generate` s'exécute déjà via le hook `postinstall`, avant que ce
+  script ne tourne. Le seed est du contenu réel confirmé (Paris/Berlin/
+  Reims, voir `docs/ENGINEERING_DISCOVERY.md`), pas des données de test
+  jetables, et `prisma/seed.ts` est idempotent (`upsert`) - sûr à
+  ré-exécuter à chaque déploiement, y compris quand la base contient déjà
+  ces lignes.
 - **`DATABASE_URL` doit pointer vers une base accessible depuis Internet** -
   la base `compose.yaml` n'est joignable qu'en local. Toute offre Postgres
   managée convient (intégration Vercel Postgres/Neon, Supabase, Railway,

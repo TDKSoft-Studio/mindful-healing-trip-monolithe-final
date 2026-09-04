@@ -163,7 +163,8 @@ en résumé : une base PostgreSQL accessible depuis Internet (pas
 `compose.yaml`, local uniquement), les variables d'environnement à
 configurer dans le dashboard (`DATABASE_URL`, `NEXT_PUBLIC_SITE_URL`,
 `CONTACT_EMAIL`, `SMTP_*`), et le script `vercel-build` (détecté
-automatiquement par Vercel) qui applique les migrations avant le build.
+automatiquement par Vercel) qui applique les migrations et le seed avant
+le build.
 
 ## CI locale avant toute Pull Request
 

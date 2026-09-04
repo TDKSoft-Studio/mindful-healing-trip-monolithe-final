@@ -1,0 +1,202 @@
+name: Publish Image
+
+# Publishes the production OCI image to GHCR once the CI workflow has
+# passed on `main`. Deliberately a separate workflow from ci.yml, which
+# mirrors `task ci` exactly (see its own header comment) — image
+# publishing is a distinct concern (build once, promote the same
+# artifact everywhere; see the infrastructure repository's
+# docs/CLAUDE.md §44/§45) and must never be an implicit side effect of
+# the test/lint/build pipeline, nor run on unreviewed pull request code.
+#
+# This is the single build point for the application image: the
+# infrastructure repository never rebuilds it — it only ever references
+# the digest published here (docs/CLAUDE.md §44 in the infrastructure
+# repository).
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  # Lets an operator re-publish without a new commit (e.g. after a
+  # transient registry failure), and lets a fix to this Dockerfile/build
+  # be validated for real on its own branch before merging to main --
+  # workflow_dispatch is independent of the workflow_run gate above (no
+  # `if: conclusion == 'success'` check applies to it), so use it only
+  # when you already trust the commit being built.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  IMAGE: ghcr.io/tdksoft-studio/mindful-healing-trip-monolithe-final
+  # None of this app's DB-backed pages declare `dynamic`/`revalidate`, so
+  # `next build` statically prerenders them by querying the database live
+  # at build time (confirmed by a real failed build: "Can't reach
+  # database server" with no DATABASE_URL at all). This throwaway,
+  # migrated-and-seeded Postgres exists solely so that build can
+  # succeed -- it is not a secret (same well-known dev credential as
+  # ci.yml already uses), but whatever it contains gets baked into this
+  # image's static output. See
+  # docs/adr/0009-image-build-time-data-baking.md in the infrastructure
+  # repository for the accepted tradeoff this implies (this image is
+  # NOT purely code -- its static pages carry a snapshot of whatever was
+  # seeded here) and why the alternative (making those pages dynamic)
+  # was deferred rather than done here.
+  DATABASE_URL: postgresql://mindfultrip:devpassword@localhost:5432/mindfultrip?schema=public
+
+jobs:
+  publish:
+    # Only publish when CI actually passed on the commit that triggered
+    # it — a `workflow_run` fires regardless of the upstream conclusion,
+    # so this check is load-bearing, not decorative. A manual
+    # workflow_dispatch has no upstream conclusion to check -- dispatching
+    # it at all is the trust signal, e.g. to validate a fix on its own
+    # branch before merging to main.
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    # Mirrors ci.yml's postgres service exactly -- same image version,
+    # same throwaway credentials -- so `pnpm db:migrate:deploy`/`db:seed`
+    # behave identically to the already-proven CI path.
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: mindfultrip
+          POSTGRES_PASSWORD: devpassword
+          POSTGRES_DB: mindfultrip
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U mindfultrip -d mindfultrip"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      # Single source of truth for "which commit" and "which tags" so the
+      # rest of this job doesn't need to know which trigger fired it.
+      - name: Compute revision and tags
+        id: meta
+        run: |
+          set -Eeuo pipefail
+          REVISION="${{ github.event.workflow_run.head_sha }}"
+          if [ -z "${REVISION}" ]; then
+            REVISION="${{ github.sha }}"
+          fi
+          echo "revision=${REVISION}" >> "${GITHUB_OUTPUT}"
+          {
+            echo "tags<<PUBLISH_TAGS_EOF"
+            echo "${IMAGE}:${REVISION}"
+            # :latest only for a real workflow_run publish off main -- a
+            # manual workflow_dispatch (e.g. testing a fix branch) must
+            # never overwrite it with an unmerged commit's build.
+            if [ "${{ github.event_name }}" = "workflow_run" ]; then
+              echo "${IMAGE}:latest"
+            fi
+            echo "PUBLISH_TAGS_EOF"
+          } >> "${GITHUB_OUTPUT}"
+        env:
+          IMAGE: ${{ env.IMAGE }}
+
+      - name: Checkout the exact commit CI validated
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.meta.outputs.revision }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # Runs on the runner itself (not inside the Docker build) so the
+      # throwaway DB is migrated and seeded before `docker build` ever
+      # starts -- mirrors ci.yml's own migrate/seed/build ordering.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Apply database migrations (throwaway build-time DB)
+        run: pnpm db:migrate:deploy
+
+      - name: Seed database (throwaway build-time DB)
+        run: pnpm db:seed
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          # The image build's `RUN pnpm build` needs to reach the
+          # postgres service above, which GitHub Actions publishes on
+          # the *runner's* localhost -- the default buildx driver runs
+          # in its own container on a separate network and can't see
+          # it. `network=host` puts the builder container on the
+          # runner's network namespace instead.
+          driver-opts: network=host
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          # NEXT_PUBLIC_SITE_URL is inlined into the client bundle at
+          # build time (Dockerfile ARG) — one shared artifact is
+          # promoted to both staging and production (infra §45), so it
+          # is baked with the confirmed production canonical domain.
+          # Staging showing production canonical URLs is a known,
+          # already-documented limitation (see the infrastructure
+          # repository's deploy/helm/mindfultrip/README.md "Known
+          # limitations"), not something this workflow can fix.
+          build-args: |
+            NEXT_PUBLIC_SITE_URL=https://healingtrip.nextgen-cares.org
+            DATABASE_URL=${{ env.DATABASE_URL }}
+          # Matches the buildx driver's network=host above -- the build
+          # itself (not just the builder daemon) must run with host
+          # networking for `RUN pnpm build` to reach the postgres service
+          # on the runner's localhost:5432.
+          network: host
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: |
+            org.opencontainers.image.revision=${{ steps.meta.outputs.revision }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          # Explicitly off for now, not forgotten: keeps the pushed
+          # artifact a single, unambiguous digest while the supply-chain
+          # controls in docs/CLAUDE.md §51 (SBOM, provenance, signing)
+          # are still at "not yet adopted" maturity. Revisit together
+          # when that maturity level changes.
+          provenance: false
+          sbom: false
+
+      - name: Record the published artifact
+        run: |
+          {
+            echo "### Published image"
+            echo
+            echo "\`${IMAGE}@${DIGEST}\`"
+            echo
+            echo "Git revision: \`${REVISION}\`"
+            echo "Trigger: \`${EVENT_NAME}\`"
+            echo
+            echo "Use this digest — not a tag — as \`web.image.digest\` when"
+            echo "deploying via the infrastructure repository"
+            echo "(docs/CLAUDE.md §14 there: production requires an immutable"
+            echo "digest, never a mutable tag)."
+          } >> "$GITHUB_STEP_SUMMARY"
+        env:
+          IMAGE: ${{ env.IMAGE }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+          REVISION: ${{ steps.meta.outputs.revision }}
+          EVENT_NAME: ${{ github.event_name }}

@@ -7,6 +7,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("next/headers", () => ({
   headers: vi.fn(),
 }));
+// `after()` requires a real Next.js request scope (throws otherwise, same
+// reason `next/headers` is mocked above) - mocked to just run the callback
+// without awaiting it, mirroring what the real implementation does when
+// there's no platform waitUntil to hand it to.
+vi.mock("next/server", () => ({
+  after: vi.fn((task: () => void | Promise<void>) => {
+    void task();
+  }),
+}));
 vi.mock("@/features/trips/queries", () => ({
   getPublishedTripBySlug: vi.fn(),
 }));

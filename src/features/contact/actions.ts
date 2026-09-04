@@ -1,6 +1,7 @@
 "use server";
 
 import { headers } from "next/headers";
+import { after } from "next/server";
 
 import { getPublishedTripBySlug } from "@/features/trips/queries";
 import { getEmailService } from "@/lib/email";
@@ -85,12 +86,18 @@ export async function submitContactRequest(
   // so the visitor's response must not wait on (or be blocked by) SMTP
   // round-trips - a slow/unreachable mail server would otherwise stall the
   // submission for as long as nodemailer's connection/greeting timeouts
-  // allow (minutes by default). Safe as fire-and-forget here because this
-  // app runs as a long-lived Node process (standalone output), not a
-  // serverless function that gets torn down once the response is sent -
-  // notifyByEmail() also never rejects (each send is individually
-  // try/catch'd), so there's no unhandled rejection risk either.
-  void notifyByEmail(contactRequest, trip?.title);
+  // allow (minutes by default). Scheduled via `after()` (next/server)
+  // rather than a bare `void` call: this app's standalone/Docker
+  // deployment stays alive long enough for an un-awaited promise to finish
+  // on its own, but a serverless target (e.g. Vercel) freezes the function
+  // right after the response is sent, silently killing an in-flight `void`
+  // call before the email goes out. `after()` is the platform-portable
+  // primitive for exactly this - it uses the deployment's own `waitUntil`
+  // under the hood where one exists, and degrades to running the callback
+  // normally on a long-lived Node process. notifyByEmail() also never
+  // rejects (each send is individually try/catch'd), so there's no
+  // unhandled rejection risk either way.
+  after(() => notifyByEmail(contactRequest, trip?.title));
 
   return { status: "success" };
 }

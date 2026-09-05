@@ -13,6 +13,18 @@ RUN corepack enable
 FROM base AS deps
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY prisma ./prisma
+# `pnpm install`'s postinstall (`prisma generate`) only needs the schema --
+# it never opens a database connection -- but `prisma.config.ts`'s
+# `env("DATABASE_URL")` resolves the variable *eagerly* for every Prisma
+# CLI command, `generate` included, and throws if it's simply unset
+# ("Cannot resolve environment variable: DATABASE_URL"), regardless of
+# whether it points anywhere reachable. Every other environment already
+# guarantees DATABASE_URL is at least *present* before `pnpm install` runs
+# (task setup's .env.local, ci.yml's job env, Vercel's dashboard env) --
+# this placeholder does the same for the one environment that didn't
+# (this stage). It is never used to connect to anything and is not a
+# secret: don't replace it with a real DATABASE_URL build-arg.
+ENV DATABASE_URL="postgresql://build:build@localhost:5432/build?schema=public"
 RUN pnpm install --frozen-lockfile
 
 # --- builder: compile the Next.js app ----------------------------------------
@@ -26,21 +38,23 @@ COPY --from=deps /app/node_modules ./node_modules
 # '@/generated/prisma/client'".
 COPY --from=deps /app/src/generated ./src/generated
 COPY . .
-# NEXT_PUBLIC_* values are baked into the client bundle at build time.
+# NEXT_PUBLIC_* values are baked into the client bundle at build time --
+# this is public, non-secret build-time config, unlike DATABASE_URL below.
 ARG NEXT_PUBLIC_SITE_URL
 ENV NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL}
-# None of this app's DB-backed pages (/, /voyages, /destinations/[slug],
-# ...) declare `dynamic`/`revalidate`, so `next build` statically
-# prerenders them -- which means it queries the database live, at build
-# time, or the build fails outright ("Can't reach database server").
-# DATABASE_URL here must point to a real, reachable Postgres for that
-# reason alone; whatever rows exist in it get baked into this image's
-# static output. See docs/adr/0009-image-build-time-data-baking.md in
-# the infrastructure repository for the tradeoff this implies and why it
-# was accepted rather than fixed at the application-architecture level
-# for now.
-ARG DATABASE_URL
-ENV DATABASE_URL=${DATABASE_URL}
+# Every DB-backed route (/, /voyages, /voyages/[slug], /destinations,
+# /destinations/[slug], /contact, /sitemap.xml) declares
+# `export const dynamic = "force-dynamic"` (or, for the two `[slug]`
+# routes, is already rendered on demand because there's no
+# `generateStaticParams`) -- so `next build` never queries PostgreSQL.
+# DATABASE_URL is therefore intentionally *not* set here: it is runtime
+# configuration, injected only in Kubernetes via a Secret (see
+# src/lib/db/prisma.ts and docs/ARCHITECTURE.md). Previously this stage
+# took DATABASE_URL as a build ARG pointed at a real, reachable Postgres
+# so the static prerender above could succeed, baking whatever rows
+# existed in it into this image's static output -- see
+# docs/adr/0009-image-build-time-data-baking.md in the infrastructure
+# repository, now superseded by making those routes dynamic instead.
 RUN pnpm build
 
 # --- runner: minimal production runtime --------------------------------------

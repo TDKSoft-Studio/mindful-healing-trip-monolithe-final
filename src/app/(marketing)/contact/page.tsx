@@ -20,7 +20,13 @@ type SearchParams = Promise<{ voyage?: string }>;
  * contact form itself - the form's `tripSlug` field is pre-filled from
  * `?voyage=` when arriving via BookingCTA's non-bookable fallback link
  * (contract §14/§22).
+ *
+ * Already dynamic in practice (reading `searchParams` opts a route out of
+ * static rendering), but declared explicitly since it also queries live
+ * trip data via `listPublishedTrips()` for the form's dropdown - see the
+ * homepage's identical note.
  */
+export const dynamic = "force-dynamic";
 export default async function ContactPage({
   searchParams,
 }: {

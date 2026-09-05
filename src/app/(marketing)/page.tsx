@@ -15,7 +15,18 @@ import { siteConfig } from "@/lib/site-config";
  * §12). Shipping a generated/stock image in its place would misrepresent
  * it as real photography (contract §45), so this stays a text-led hero
  * until a real photo is supplied. TODO_ASSET: hero photograph.
+ *
+ * Reads live trip data (`listUpcomingTrips()`) that changes independently
+ * of any deploy, and has no dynamic route segment to fall back on (unlike
+ * /voyages/[slug] and /destinations/[slug], which are already rendered
+ * on-demand per request because they have no `generateStaticParams`) - so
+ * without this, `next build` would statically prerender it once and query
+ * PostgreSQL live at build time, which fails when no database is reachable
+ * from the build environment (see Dockerfile). `force-dynamic` over
+ * `revalidate`: trip status (OPEN/LIMITED/SOLD_OUT) must never show stale
+ * for even a short ISR window (contract §13/§14).
  */
+export const dynamic = "force-dynamic";
 export default async function HomePage() {
   const upcomingTrips = await listUpcomingTrips();
 

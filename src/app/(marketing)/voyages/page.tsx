@@ -11,6 +11,10 @@ export const metadata = buildMetadata({
   path: "/voyages",
 });
 
+// Reads live trip data (publication status changes independently of any
+// deploy) - see the homepage's identical note for why this is
+// `force-dynamic` rather than left to the default static prerender.
+export const dynamic = "force-dynamic";
 export default async function VoyagesPage() {
   const trips = await listPublishedTrips();
 

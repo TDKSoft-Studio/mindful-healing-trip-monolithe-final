@@ -238,6 +238,43 @@ spécial Docker.
 (hot reload via bind-mount, identifiants de dev) - il ne construit pas
 l'image de production et ne doit jamais servir de référence pour la prod.
 
+### Build time vs runtime : PostgreSQL n'est pas une dépendance du build
+
+`docker build` ne se connecte jamais à PostgreSQL et `DATABASE_URL` n'est
+plus un `--build-arg` du `builder` (ni un secret injecté au build). Ça n'a
+pas toujours été le cas : toutes les routes lisant Prisma (`/`, `/voyages`,
+`/voyages/[slug]`, `/destinations`, `/destinations/[slug]`, `/contact`,
+`/sitemap.xml`) déclarent maintenant `export const dynamic =
+"force-dynamic"` (les deux routes `[slug]` sont de toute façon déjà
+rendues à la demande, faute de `generateStaticParams`) - donc `next
+build` ne les prérend plus statiquement et ne les exécute jamais. Sans ça,
+`next build` interrogeait la base **au moment du build** (soit une
+connexion réussie dont les lignes se retrouvaient figées dans la sortie
+statique de l'image, soit un échec immédiat - `ECONNREFUSED` - si aucune
+base n'était joignable depuis l'environnement de build). Voir le
+commentaire du `Dockerfile` (stage `builder`) et
+`docs/adr/0009-image-build-time-data-baking.md` dans le dépôt
+d'infrastructure, dont la décision est superseded par ce changement : ce
+n'est plus un compromis accepté, PostgreSQL n'est simplement plus
+nécessaire pour produire l'image.
+
+Le seul endroit où `DATABASE_URL` doit encore exister au moment du build
+est le stage `deps` (`pnpm install` → hook `postinstall` → `prisma
+generate`) : `prisma.config.ts` résout `DATABASE_URL` de façon *eager*
+pour n'importe quelle commande Prisma CLI, `generate` inclus, même si
+`generate` ne se connecte jamais réellement à une base - une valeur
+absente y fait échouer `pnpm install` avant même d'atteindre `next build`.
+Le `Dockerfile` y fixe donc un `DATABASE_URL` factice, non secret, qui ne
+sert qu'à satisfaire ce chargement de config (jamais utilisé pour se
+connecter à quoi que ce soit).
+
+`DATABASE_URL` reste une configuration strictement **runtime** :
+`src/lib/db/prisma.ts` la lit depuis `process.env` à la connexion réelle,
+et le stage `runner` (`FROM node:22-alpine`, repartant de zéro plutôt que
+d'hériter de `base`/`deps`/`builder`) ne la définit jamais - elle doit
+être injectée par l'environnement d'exécution (Kubernetes Secret en
+production, `compose.yaml`/`.env.local` en local).
+
 ### Alternative : Vercel
 
 Le Docker/self-hosting ci-dessus reste la référence, mais le monolithe se
@@ -466,12 +503,10 @@ sans URL de réservation encore fournie).
 
 Contrat §62. Un passage dédié, distinct du code applicatif :
 
-- **Build/run Docker** : voir « Limites connues » ci-dessous - le daemon
-  Docker a pu être démarré dans ce bac à sable (nouveauté par rapport aux
-  phases précédentes), mais le pull des images depuis `docker.io` est
-  bloqué par la politique réseau de l'environnement (403 explicite, pas un
-  problème de confiance TLS) - `docker compose config` (validation
-  structurelle sans pull) est en revanche passé sans erreur.
+- **Build/run Docker** : voir « Limites connues » ci-dessous et « Build
+  time vs runtime » ci-dessus - `docker build`/`docker run` complets
+  validés de bout en bout, `DATABASE_URL` fournie uniquement au conteneur
+  runtime.
 - **Variables d'environnement** : `.env.example` documente déjà toutes les
   variables (contrat §27) ; aucune n'a de valeur secrète réelle committée.
 - **Migrations** : `pnpm db:migrate:deploy` (utilisé par `task ci` et
@@ -528,14 +563,14 @@ confirme. Aucun CMS n'est construit préventivement (contrat §39).
   explicites - textes juridiques réels non fournis (contrat §37).
 - Aucune vraie photographie (hero, voyages, destinations) - tout est
   `TODO_ASSET`, `ImageGallery` est câblé mais ne s'affiche jamais encore.
-- `docker build` n'a pas pu être mené à terme dans ce bac à sable : le
-  daemon Docker démarre correctement (Phase 8), mais le pull de
-  `node:22-alpine` depuis `docker.io` est bloqué par la politique réseau
-  de l'environnement (403 explicite sur le registre, pas un problème de
-  configuration du `Dockerfile`). Validé indirectement à la place :
-  `docker compose config` (validation structurelle sans pull), et
-  build/démarrage du serveur standalone exécutés hors conteneur avec les
-  mêmes artefacts que le `Dockerfile` produit (`output: "standalone"` +
-  `scripts/copy-standalone-assets.mjs`). À vérifier avec un
-  `docker build` complet sur une machine avec accès registre avant la
-  mise en production.
+- `docker build` a depuis été mené à terme avec succès sur une machine
+  avec accès registre (résout la limitation précédemment notée ici sur le
+  pull de `node:22-alpine` bloqué par la politique réseau d'un bac à
+  sable antérieur) : image construite sans `--build-arg DATABASE_URL`,
+  sans PostgreSQL joignable depuis le contexte de build, puis démarrée
+  avec `DATABASE_URL` fourni uniquement au conteneur runtime - `/`,
+  `/voyages`, `/destinations`, `/sitemap.xml` servent alors les données
+  seedées en direct ; `/api/health` reste `200` même sans `DATABASE_URL`
+  au runtime (seules les routes DB-backed échouent alors, en `500`, par
+  requête - pas au démarrage du process). Voir « Build time vs runtime »
+  ci-dessus.

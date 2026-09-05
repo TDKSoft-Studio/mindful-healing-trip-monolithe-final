@@ -11,7 +11,13 @@ import { siteConfig } from "@/lib/site-config";
  * /mentions-legales and /politique-confidentialite - they carry a
  * `noindex` (contract §37), so listing them in the sitemap would send a
  * contradictory signal.
+ *
+ * `sitemap.js` is cached/prerendered by default unless it opts into
+ * dynamic config - like the pages it mirrors, this queries live trip/
+ * destination data, so it needs the same `force-dynamic` to avoid
+ * querying PostgreSQL at build time.
  */
+export const dynamic = "force-dynamic";
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const [trips, destinations] = await Promise.all([
     listPublishedTrips(),
